@@ -9,3 +9,24 @@
 # wait-params = { timeout = 300, retry-interval = 10 }     # Wait for submitted transaction parameters
 # block-explorer = "StarkScan"                             # Block explorer service used to display links to transaction details
 # show-explorer-links = true                               # Print links pointing to pages with transaction details in the chosen block explorer
+
+# [sncast.default]
+# account = "my_default"
+# accounts-file = "/home/dean/.starknet_accounts/starknet_open_zeppelin_accounts.json"
+# url = "http://localhost:5050/rpc"
+
+
+
+# To create an account with starknet foundry => use starknet-devnet to get local address ad private key
+# sncast account import --url https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_8/PP5-km-xd8s0Ui0FrVxyBSEfD_UhS0e9 --name to_dep --address 0x0509b4397CC9C1cF56f74Cb3E418cfCb29BFAe5EaEa1Ec3Ce58E95F4EF8c358a --private-key 0x00000000000000000000000000000000d7f850b35bb486b5960cd88f081ad773 --type argent --add-profile to_dep
+[sncast.default]
+account = "to_dep"
+accounts-file = "/home/dean/.starknet_accounts/starknet_open_zeppelin_accounts.json"
+url = "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_8/PP5-km-xd8s0Ui0FrVxyBSEfD_UhS0e9"
+
+
+# 0x0408b587b80d4c848d6f875ecd4b64b068ccf50b344625adec168b65a0a81706
+# /home/dean/Current_Projects/eri/starkli-wallet/keystore.json
+# 0x06333dd797bf31a773139986acc2aa8e4fa9e10b1a30ee1d536134a83abc1942
+
+# 0x05cdfe34330a83123762d1fdbb88506c703e284d0199b99eb422c1c25c08323f
