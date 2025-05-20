@@ -8,13 +8,12 @@ pub mod Authenticity {
     use starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
     };
-    use starknet::{
-        ContractAddress, get_caller_address,
-    }; //get_block_timestamp, get_contract_address*/};
-    use crate::errors::Errors::*;
-    use crate::events::Events::ManufacturerRegistered;
-    use crate::iauthenticity::{IAuthenticity, IOwnershipDispatcher, IOwnershipDispatcherTrait};
-    use crate::models::Models::{Certificate, Manufacturer, Signature, hash_array};
+    use starknet::{ContractAddress, get_caller_address};
+    use crate::errors::EriErrors::*;
+    use crate::events::EriEvents::ManufacturerRegistered;
+    use crate::interfaces::{IAuthenticity, IOwnershipDispatcher, IOwnershipDispatcherTrait};
+    use crate::utilities::Models::{Certificate, Manufacturer, Signature};
+    use crate::utilities::hash_array;
 
     //events
     #[event]
@@ -57,7 +56,7 @@ pub mod Authenticity {
             assert(manu.manufacturer_address.is_zero(), ALREADY_REGISTERED);
 
             // username length.. this wil be checked in the frontend
-            assert(username != 0, INVALID_MANUFACTURER_NAME);
+            assert(username != 0, INVALID_NAME);
 
             let manufacturer = Manufacturer { manufacturer_address: caller, username };
 
@@ -97,10 +96,11 @@ pub mod Authenticity {
             manufacturer
         }
 
+        // NOT YET TESTED
         fn verify_signature(
             self: @ContractState, certificate: Certificate, signature: Signature,
         ) -> bool {
-            // Hash certificate data
+            // to hash certificate data
             let mut state = PedersenTrait::new(0);
             state = state.update_with(certificate.name);
             state = state.update_with(certificate.unique_id);
@@ -124,6 +124,7 @@ pub mod Authenticity {
             true
         }
 
+        //NOT YET TESTED
         fn user_claim_ownership(
             ref self: ContractState, certificate: Certificate, signature: Signature,
         ) {

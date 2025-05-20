@@ -1,6 +1,6 @@
 mod authenticity;
-mod iauthenticity;
-mod models;
+mod interfaces;
+mod utilities;
 mod events;
 mod errors;
 mod ownership;

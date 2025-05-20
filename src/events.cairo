@@ -1,4 +1,4 @@
-pub mod Events {
+pub mod EriEvents {
     use starknet::ContractAddress;
 
     #[derive(Drop, starknet::Event)]
@@ -42,18 +42,4 @@ pub mod Events {
     pub struct CodeRevoked {
         pub item_hash: felt252,
     }
-    // // Events must derive the `starknet::Event` trait
-// #[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
-// pub struct CounterIncreased {
-//     pub amount: u128,
-// }
-
-    // #[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
-// pub struct UserIncreaseCounter {
-//     // The `#[key]` attribute indicates that this event will be indexed.
-//     // You can also use `#[flat]` for nested structs.
-//     #[key]
-//     pub user: starknet::ContractAddress,
-//     pub new_value: u128,
-// }
 }

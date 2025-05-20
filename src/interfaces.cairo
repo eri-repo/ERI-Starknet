@@ -1,7 +1,6 @@
 use starknet::ContractAddress;
-use crate::models::Models::*;
+use crate::utilities::Models::*;
 
-// Interface implementation
 #[starknet::interface]
 pub trait IAuthenticity<TContractState> {
     fn manufacturer_registers(ref self: TContractState, username: felt252);
@@ -19,7 +18,6 @@ pub trait IAuthenticity<TContractState> {
 }
 
 
-
 #[starknet::interface]
 pub trait IOwnership<TContractState> {
     fn user_registers(ref self: TContractState, username: felt252);
@@ -33,7 +31,7 @@ pub trait IOwnership<TContractState> {
     fn get_all_items_for(self: @TContractState, user: ContractAddress) -> Array<Item>;
     fn generate_change_of_ownership_code(
         ref self: TContractState, item_id: felt252, temp_owner: ContractAddress,
-    ) -> felt252;
+    );
     fn new_owner_claim_ownership(ref self: TContractState, item_hash: felt252);
     fn get_temp_owner(self: @TContractState, item_hash: felt252) -> ContractAddress;
     fn owner_revoke_code(ref self: TContractState, item_hash: felt252);

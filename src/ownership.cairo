@@ -3,13 +3,16 @@ mod Ownership {
     use core::hash::{HashStateExTrait, HashStateTrait};
     use core::pedersen::PedersenTrait;
     use starknet::storage::{
-        Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess
+        Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
     };
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address, get_contract_address};
-    use crate::errors::Errors::*;
-    use crate::events::Events::*;
-    use crate::iauthenticity::IOwnership;
-    use crate::models::Models::{Certificate, Item, Owner, UserProfile, hash_array};
+    use crate::errors::EriErrors::*;
+    use crate::events::EriEvents::*;
+    use crate::interfaces::IOwnership;
+    use crate::utilities::Models::{Certificate, Item, Owner, UserProfile};
+    use crate::utilities::{deleted_item, hash_array};
+
+    const ADDRESS_ZERO: ContractAddress = 0x0.try_into().unwrap();
 
     #[storage]
     struct Storage {
@@ -24,8 +27,6 @@ mod Ownership {
         temp_owners: Map<felt252, Map<ContractAddress, Item>> // (item_hash, temp_owner) -> Item
     }
 
-    // Define zero address constant
-    const ADDRESS_ZERO: ContractAddress = 0x0.try_into().unwrap();
 
     #[event]
     #[derive(Drop, starknet::Event)]
@@ -51,13 +52,12 @@ mod Ownership {
         fn user_registers(ref self: ContractState, username: felt252) {
             let caller = get_caller_address();
 
-            assert(caller != ADDRESS_ZERO, 'Caller cannot be zero address');
-            assert(username != 0, 'Username cannot be empty');
+            assert(caller != ADDRESS_ZERO, ZERO_ADDRESS);
+            assert(username != 0, INVALID_NAME);
             assert(
-                self.users.entry(username).read().user_address == ADDRESS_ZERO,
-                'Username already taken',
+                self.users.entry(username).read().user_address == ADDRESS_ZERO, NAME_NOT_AVAILABLE,
             );
-            assert(self.usernames.entry(caller).read() == 0, 'Address already registered');
+            assert(self.usernames.entry(caller).read() == 0, ALREADY_REGISTERED);
 
             let user = UserProfile {
                 user_address: caller,
@@ -68,13 +68,16 @@ mod Ownership {
 
             self.users.entry(username).write(user);
             self.usernames.entry(caller).write(username);
+
             self.emit(UserRegistered { user_address: caller, username });
         }
 
+
         fn get_user(self: @ContractState, user_address: ContractAddress) -> UserProfile {
-            assert(user_address != ADDRESS_ZERO, 'Invalid address');
+            assert(user_address != ADDRESS_ZERO, ZERO_ADDRESS);
             let username = self.usernames.entry(user_address).read();
-            assert(username != 0, 'User does not exist');
+            assert!(username != 0, "{:?} DOES_NOT_EXIST", user_address);
+
             self.users.entry(username).read()
         }
 
@@ -84,13 +87,18 @@ mod Ownership {
             certificate: Certificate,
             manufacturer_name: felt252,
         ) {
-            assert(caller != ADDRESS_ZERO, 'Caller cannot be zero address');
-            assert(get_caller_address() != ADDRESS_ZERO, ZERO_ADDRESS);
+            
+            assert(
+                get_caller_address() != ADDRESS_ZERO, ZERO_ADDRESS,
+            ); //making sure calling contract is not zero
+
             let username = self.usernames.entry(caller).read();
-            assert(username != 0, 'Caller not registered');
+            assert!(username != 0, "{:?} not registered", caller);
+
             let item_id = certificate.unique_id;
-            assert(item_id != 0, 'Invalid item ID');
-            assert(self.owners.entry(item_id).read() == ADDRESS_ZERO, 'Item already owned');
+            assert(item_id != 0, INVALID_ID);
+
+            assert(self.owners.entry(item_id).read() == ADDRESS_ZERO, ALREADY_OWNED);
 
             let item = Item {
                 item_id,
@@ -104,75 +112,77 @@ mod Ownership {
 
             self.owned_items.entry(caller).entry(item_id).write(item.clone());
             self.owners.entry(item_id).write(caller);
+
             let index = self.my_items_length.entry(caller).read();
+
             self.my_items.entry(caller).entry(index).write(item);
             self.my_items_length.entry(caller).write(index + 1);
+
             self.emit(ItemCreated { item_id, owner: caller });
         }
 
         fn get_all_items_for(self: @ContractState, user: ContractAddress) -> Array<Item> {
-            assert(user != ADDRESS_ZERO, 'Invalid address');
-            let username = self.usernames.entry(user).read();
-            assert(username != 0, 'User does not exist');
-            let mut items = ArrayTrait::new();
-            let length = self.my_items_length.entry(user).read();
-            let mut i = 0;
+            assert(user != ADDRESS_ZERO, ZERO_ADDRESS);
 
-            while i < length {
-                let item = self.my_items.entry(user).entry(i).read();
-                if item.owner != ADDRESS_ZERO {
-                    items.append(item);
-                }
-                i += 1;
+            let username = self.usernames.entry(user).read();
+            assert!(username != 0, "{:?} DOES_NOT_EXIST", user);
+
+            let mut items = ArrayTrait::new();
+            let mut length = self.my_items_length.entry(user).read();
+
+            if length == 0 {
+                return items;
             }
 
-            // loop {
-            //     if i >= length {
-            //         break;
-            //     }
-            //     let item = self.my_items.read((user, i));
-            //     if item.owner != ADDRESS_ZERO {
-            //         items.append(item);
-            //     }
-            //     i += 1;
-            // }
+            while length != 0 {
+                let item = self.my_items.entry(user).entry(length).read();
+
+                if self.owned_items.entry(user).entry(item.item_id).read().owner == user {
+                    items.append(item);
+                }
+                length -= 1;
+            }
             items
         }
 
         fn generate_change_of_ownership_code(
             ref self: ContractState, item_id: felt252, temp_owner: ContractAddress,
-        ) -> felt252 {
+        ) {
             let caller = get_caller_address();
-            assert(caller != ADDRESS_ZERO, 'Caller cannot be zero address');
+
+            assert(caller != ADDRESS_ZERO, ZERO_ADDRESS);
             assert(temp_owner != ADDRESS_ZERO, ZERO_ADDRESS);
-            assert(caller == self.owners.entry(item_id).read(), 'Caller is not owner');
-            assert(self.usernames.entry(caller).read() != 0, 'Caller not registered');
-            assert(temp_owner != caller, 'Cannot generate for yourself');
+            assert(caller == self.owners.entry(item_id).read(), ONLY_OWNER);
+            assert!(self.usernames.entry(caller).read() != 0, "{:?} not registered", caller);
+            assert(temp_owner != caller, CANNOT_GENERATE);
 
             let item = self.owned_items.entry(caller).entry(item_id).read();
-            assert(item.owner != ADDRESS_ZERO, 'Item does not exist');
+            assert!(item.owner != ADDRESS_ZERO, "{:?} DOES_NOT_EXIST", item_id);
 
             let mut state = PedersenTrait::new(0);
             state = state.update_with(item.item_id);
             state = state.update_with(temp_owner);
             let item_hash = state.finalize();
 
-            assert(self.temp.entry(item_hash).read() == ADDRESS_ZERO, 'Item not claimed yet');
+            assert(self.temp.entry(item_hash).read() == ADDRESS_ZERO, UNCLAIMED);
 
             self.temp_owners.entry(item_hash).entry(temp_owner).write(item);
             self.temp.entry(item_hash).write(temp_owner);
+
             self.emit(OwnershipCode { ownership_code: item_hash, temp_owner });
-            item_hash
         }
 
         fn new_owner_claim_ownership(ref self: ContractState, item_hash: felt252) {
             let new_owner = get_caller_address();
-            assert(new_owner != ADDRESS_ZERO, 'Caller cannot be zero address');
-            assert(self.usernames.entry(new_owner).read() != 0, 'Caller not registered');
+
+            assert(new_owner != ADDRESS_ZERO, ZERO_ADDRESS);
+            assert!(self.usernames.entry(new_owner).read() != 0, "{:?} not registered", new_owner);
+
             let temp_owner = self.temp.entry(item_hash).read();
-            assert(temp_owner == new_owner, 'Unauthorized claimant');
+            assert(temp_owner == new_owner, INCONSISTENT_CLAIMER);
+
             let item = self.temp_owners.entry(item_hash).entry(new_owner).read();
-            assert(item.owner != ADDRESS_ZERO, 'Invalid item hash');
+            assert(item.owner != ADDRESS_ZERO, INVALID);
 
             let old_owner = item.owner;
             let item_id = item.item_id;
@@ -180,49 +190,30 @@ mod Ownership {
             let mut new_item = item;
             new_item.owner = new_owner;
 
-            self.owned_items.entry(old_owner).entry(item_id).write(item);
+            self.owned_items.entry(old_owner).entry(item_id).write(deleted_item());
+
             self.owned_items.entry(new_owner).entry(item_id).write(new_item);
             self.owners.entry(item_id).write(new_owner);
 
             let mut is_part = false;
-            let length = self.my_items_length.entry(new_owner).read();
-            let mut i = 0;
+            let mut length = self.my_items_length.entry(new_owner).read();
 
-            while i < length {
-                if self.my_items.entry(new_owner).entry(i).read().item_id == item_id {
+            while length != 0 {
+                if self.my_items.entry(new_owner).entry(length).read().item_id == item_id {
                     is_part = true;
                     break;
                 }
-                i += 1;
+                length -= 1;
             }
 
-            // loop {
-            //     if i >= length {
-            //         break;
-            //     }
-            //     if self.my_items.read((new_owner, i)).item_id == item_id {
-            //         is_part = true;
-            //         break;
-            //     }
-            //     i += 1;
-            // }
             if !is_part {
                 self.my_items.entry(new_owner).entry(length).write(new_item);
                 self.my_items_length.entry(new_owner).write(length + 1);
             }
 
-            self.temp_owners.entry(item_hash).entry(new_owner).write(item);
-            //     Item {
-            //         item_id: 0,
-            //         owner: ADDRESS_ZERO,
-            //         name: 0,
-            //         date: 0,
-            //         manufacturer: 0,
-            //         metadata: 0,
-            //         serial: 0,
-            //     },
-            // );
+            self.temp_owners.entry(item_hash).entry(new_owner).write(deleted_item());
             self.temp.entry(item_hash).write(ADDRESS_ZERO);
+
             self.emit(OwnershipClaimed { new_owner, old_owner });
         }
 
@@ -232,37 +223,31 @@ mod Ownership {
 
         fn owner_revoke_code(ref self: ContractState, item_hash: felt252) {
             let caller = get_caller_address();
-            assert(caller != ADDRESS_ZERO, 'Caller cannot be zero address');
-            assert(self.usernames.entry(caller).read() != 0, 'Caller not registered');
+
+            assert(caller != ADDRESS_ZERO, ZERO_ADDRESS);
+            assert!(self.usernames.entry(caller).read() != 0, "{:?} not registered", caller);
+
             let temp_owner = self.temp.entry(item_hash).read();
             let item = self.temp_owners.entry(item_hash).entry(temp_owner).read();
-            assert(item.owner != ADDRESS_ZERO, 'Item does not exist');
-            assert(item.owner == caller, 'Caller is not owner');
+            assert!(item.owner != ADDRESS_ZERO, "{:?} DOES_NOT_EXIST", item_hash);
+            assert(item.owner == caller, ONLY_OWNER);
 
-            self.temp_owners.entry(item_hash).entry(temp_owner).write(item);
-
-            //     Item {
-            //         item_id: 0,
-            //         owner: ADDRESS_ZERO,
-            //         name: 0,
-            //         date: 0,
-            //         manufacturer: 0,
-            //         metadata: 0,
-            //         serial: 0,
-            //     },
-            // );
+            self.temp_owners.entry(item_hash).entry(temp_owner).write(deleted_item());
             self.temp.entry(item_hash).write(ADDRESS_ZERO);
+
             self.emit(CodeRevoked { item_hash });
         }
 
         fn get_item(self: @ContractState, item_id: felt252) -> Item {
             let owner = self.owners.entry(item_id).read();
-            assert(owner != ADDRESS_ZERO, 'Item does not exist');
+            assert!(owner != ADDRESS_ZERO, "{:?} DOES_NOT_EXIST", item_id);
+
             self.owned_items.entry(owner).entry(item_id).read()
         }
 
         fn verify_ownership(self: @ContractState, item_id: felt252) -> Owner {
             let item = self.get_item(item_id);
+
             Owner {
                 name: item.name,
                 item_id,
