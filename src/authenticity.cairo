@@ -14,7 +14,7 @@ pub mod Authenticity {
     use crate::errors::Errors::*;
     use crate::events::Events::ManufacturerRegistered;
     use crate::iauthenticity::{IAuthenticity, IOwnershipDispatcher, IOwnershipDispatcherTrait};
-    use crate::models::{Certificate, Manufacturer, Signature};
+    use crate::models::Models::{Certificate, Manufacturer, Signature, hash_array};
 
     //events
     #[event]
@@ -102,7 +102,7 @@ pub mod Authenticity {
         ) -> bool {
             // Hash certificate data
             let mut state = PedersenTrait::new(0);
-            state = state.update_with(certificate.username);
+            state = state.update_with(certificate.name);
             state = state.update_with(certificate.unique_id);
             state = state.update_with(certificate.serial);
             state = state.update_with(certificate.date);
@@ -137,17 +137,5 @@ pub mod Authenticity {
             let ownership = IOwnershipDispatcher { contract_address: self.ownership.read() };
             ownership.create_item(caller, certificate, manufacturer_name);
         }
-    }
-
-    // Helper function
-    fn hash_array(array: Array<felt252>) -> felt252 {
-        let mut state = PedersenTrait::new(0);
-        let mut len = array.len();
-        let mut i = 0;
-        while len != 0 {
-            state = state.update_with(*array.at(i));
-            len -= 1;
-        }
-        state.finalize()
     }
 }
