@@ -1,14 +1,14 @@
 {
   "version": 1,
   "variant": {
-    "type": "open_zeppelin",
+    "type": "argent",
     "version": 1,
-    "public_key": "0x7329d14b29643678836d5ccea1d93134f7b14e8bd3ef0d560560d8a11deaec1",
-    "legacy": false
+    "owner": "0x54daced5c931746bff68e0af4cce3e185fdaaa6ff8927525d250d032bab88c2",
+    "guardian": "0x0"
   },
   "deployment": {
     "status": "deployed",
-    "class_hash": "0x5b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564",
-    "address": "0x4caea06ed9c48e432f702d0da5dc2446bf7543837f0d2cc3a5f141d5224611c"
+    "class_hash": "0x36078334509b514626504edc9fb252328d1a240e4e948bef8d0c08dff45927f",
+    "address": "0x509b4397cc9c1cf56f74cb3e418cfcb29bfae5eaea1ec3ce58e95f4ef8c358a"
   }
 }

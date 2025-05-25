@@ -3,8 +3,8 @@ use crate::utilities::Models::*;
 
 #[starknet::interface]
 pub trait IAuthenticity<TContractState> {
-    fn manufacturer_registers(ref self: TContractState, username: felt252);
-    fn get_manufacturer_by_name(self: @TContractState, username: felt252) -> ContractAddress;
+    fn manufacturer_registers(ref self: TContractState, manufacturer_name: felt252);
+    fn get_manufacturer_address_by_name(self: @TContractState, manufacturer_name: felt252) -> ContractAddress;
     fn get_manufacturer(self: @TContractState, user_address: ContractAddress) -> Manufacturer;
     fn get_manufacturer_address(
         self: @TContractState, expected_manufacturer: ContractAddress,
@@ -24,7 +24,7 @@ pub trait IOwnership<TContractState> {
     fn get_user(self: @TContractState, user_address: ContractAddress) -> UserProfile;
     fn create_item(
         ref self: TContractState,
-        caller: ContractAddress,
+        _owner: ContractAddress,
         certificate: Certificate,
         manufacturer_name: felt252,
     );
@@ -38,5 +38,4 @@ pub trait IOwnership<TContractState> {
     fn get_item(self: @TContractState, item_id: felt252) -> Item;
     fn verify_ownership(self: @TContractState, item_id: felt252) -> Owner;
     fn is_owner(self: @TContractState, user: ContractAddress, item_id: felt252) -> bool;
-    fn i_own(self: @TContractState, item_id: felt252) -> bool;
 }

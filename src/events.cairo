@@ -5,7 +5,7 @@ pub mod EriEvents {
     pub struct ManufacturerRegistered {
         #[key]
         pub manufacturer_address: ContractAddress,
-        pub username: felt252,
+        pub manufacturer_name: felt252,
     }
 
     #[derive(Drop, starknet::Event)]

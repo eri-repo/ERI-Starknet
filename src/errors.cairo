@@ -11,5 +11,6 @@ pub mod EriErrors {
     pub const UNCLAIMED: felt252 = 'Item not claimed yet';
     pub const INCONSISTENT_CLAIMER: felt252 = 'Unauthorized claimant';
     pub const INVALID: felt252 = 'Invalid item hash';
+    
 
 }

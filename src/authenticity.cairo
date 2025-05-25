@@ -8,12 +8,12 @@ pub mod Authenticity {
     use starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
     };
-    use starknet::{ContractAddress, get_caller_address};
+    use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use crate::errors::EriErrors::*;
     use crate::events::EriEvents::ManufacturerRegistered;
     use crate::interfaces::{IAuthenticity, IOwnershipDispatcher, IOwnershipDispatcherTrait};
     use crate::utilities::Models::{Certificate, Manufacturer, Signature};
-    use crate::utilities::hash_array;
+    use crate::utilities::{address_zero_check, hash_array};
 
     //events
     #[event]
@@ -35,6 +35,9 @@ pub mod Authenticity {
     fn constructor(
         ref self: ContractState, ownership_addr: ContractAddress, owner_addr: ContractAddress,
     ) {
+        address_zero_check(ownership_addr);
+        address_zero_check(owner_addr);
+
         self.ownership.write(ownership_addr);
         self.owner.write(owner_addr);
     }
@@ -43,56 +46,67 @@ pub mod Authenticity {
 
     #[abi(embed_v0)]
     impl Authenticity of IAuthenticity<ContractState> {
-        fn manufacturer_registers(ref self: ContractState, username: felt252) {
-            let caller = get_caller_address();
-            assert(!caller.is_zero(), ZERO_ADDRESS);
 
-            // no duplicate username
-            let manu_addr = self.names.entry(username).read();
-            assert(manu_addr.is_zero(), NAME_NOT_AVAILABLE);
+        fn manufacturer_registers(ref self: ContractState, manufacturer_name: felt252) {
+            let caller = get_caller_address();
+            address_zero_check(caller);
+
+            // no duplicate manufacturer_name
+            assert(self.names.entry(manufacturer_name).read().is_zero(), NAME_NOT_AVAILABLE);
 
             // no duplicate address
-            let manu = self.manufacturers.entry(caller).read();
-            assert(manu.manufacturer_address.is_zero(), ALREADY_REGISTERED);
+            assert(!self.manufacturers.entry(caller).read().is_registered, ALREADY_REGISTERED);
 
-            // username length.. this wil be checked in the frontend
-            assert(username != 0, INVALID_NAME);
+            let manufacturer = Manufacturer {
+                manufacturer_address: caller,
+                manufacturer_name,
+                is_registered: true,
+                registered_at: get_block_timestamp(),
+            };
 
-            let manufacturer = Manufacturer { manufacturer_address: caller, username };
-
+            self.names.entry(manufacturer_name).write(caller);
             self.manufacturers.entry(caller).write(manufacturer);
-            self.names.entry(username).write(caller);
+            
 
-            self.emit(ManufacturerRegistered { manufacturer_address: caller, username });
+            self.emit(ManufacturerRegistered { manufacturer_address: caller, manufacturer_name });
         }
 
-        fn get_manufacturer_by_name(self: @ContractState, username: felt252) -> ContractAddress {
-            let manufacturer = self.names.entry(username).read();
-            assert!(!manufacturer.is_zero(), "{:?} DOES_NOT_EXIST", username);
-            manufacturer
+        fn get_manufacturer_address_by_name(self: @ContractState, manufacturer_name: felt252) -> ContractAddress {
+
+            let manufacturer_addr = self.names.entry(manufacturer_name).read();
+            assert!(!manufacturer_addr.is_zero(), "{:?} DOES_NOT_EXIST", manufacturer_name);
+
+            manufacturer_addr
         }
 
         fn get_manufacturer(self: @ContractState, user_address: ContractAddress) -> Manufacturer {
+            address_zero_check(user_address);
+
             let manufacturer = self.manufacturers.entry(user_address).read();
             assert!(
                 !manufacturer.manufacturer_address.is_zero(), "{:?} DOES_NOT_EXIST", user_address,
             );
+
             manufacturer
         }
 
         fn get_manufacturer_address(
             self: @ContractState, expected_manufacturer: ContractAddress,
         ) -> ContractAddress {
+            address_zero_check(expected_manufacturer);
+
             let manufacturer = self
                 .manufacturers
                 .entry(expected_manufacturer)
                 .read()
                 .manufacturer_address;
+
             assert!(
                 !manufacturer.is_zero() && expected_manufacturer == manufacturer,
                 "{:?} DOES_NOT_EXIST",
                 expected_manufacturer,
             );
+
             manufacturer
         }
 
@@ -100,6 +114,7 @@ pub mod Authenticity {
         fn verify_signature(
             self: @ContractState, certificate: Certificate, signature: Signature,
         ) -> bool {
+
             // to hash certificate data
             let mut state = PedersenTrait::new(0);
             state = state.update_with(certificate.name);
@@ -111,11 +126,11 @@ pub mod Authenticity {
             state = state.update_with(metadata_hash);
             let message_hash = state.finalize();
 
-            // Verify signature
+            
             let manufacturer = self.get_manufacturer_address(certificate.owner);
             let is_valid = check_ecdsa_signature(
                 message_hash,
-                manufacturer.into(), // Public key (address as pubkey)
+                manufacturer.into(),
                 signature.r,
                 signature.s,
             );
@@ -129,12 +144,12 @@ pub mod Authenticity {
             ref self: ContractState, certificate: Certificate, signature: Signature,
         ) {
             let caller = get_caller_address();
-            assert(!caller.is_zero(), ZERO_ADDRESS);
+            address_zero_check(caller);
 
-            let is_valid = self.verify_signature(certificate.clone(), signature);
+            let is_valid = self.verify_signature(certificate, signature);
             assert(is_valid, INVALID_SIGNATURE);
 
-            let manufacturer_name = self.manufacturers.entry(certificate.owner).read().username;
+            let manufacturer_name = self.manufacturers.entry(certificate.owner).read().manufacturer_name;
             let ownership = IOwnershipDispatcher { contract_address: self.ownership.read() };
             ownership.create_item(caller, certificate, manufacturer_name);
         }
