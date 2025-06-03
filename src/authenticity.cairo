@@ -1,25 +1,43 @@
 #[starknet::contract]
 pub mod Authenticity {
     use core::array::ArrayTrait;
-    use core::ecdsa::check_ecdsa_signature;
-    use core::hash::{HashStateExTrait, HashStateTrait};
     use core::num::traits::Zero;
-    use core::pedersen::PedersenTrait;
+    use starknet::event::EventEmitter;
     use starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
     };
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use crate::errors::EriErrors::*;
-    use crate::events::EriEvents::ManufacturerRegistered;
+    use crate::events::EriEvents::{
+        AfterDate, AfterMetadata, AfterName, AfterOwner, AfterSerial, AfterUniqueId, DebugHash,
+        InMeta, ManufacturerRegistered, Meta,
+    };
     use crate::interfaces::{IAuthenticity, IOwnershipDispatcher, IOwnershipDispatcherTrait};
-    use crate::utilities::Models::{Certificate, Manufacturer, Signature};
-    use crate::utilities::{address_zero_check, hash_array};
+    use crate::utilities::Models::{Certificate, Manufacturer};
+    use crate::utilities::address_zero_check;
+
+    // use core::ecdsa::check_ecdsa_signature;
+    // use core::hash::{HashStateExTrait, HashStateTrait};
+    // use starknet::eth_address::EthAddress;
+    // use starknet::eth_signature::{public_key_point_to_eth_address, verify_eth_signature};
+    // use starknet::secp256_trait::{Signature, recover_public_key, signature_from_vrs};
+    // use starknet::secp256k1::Secp256k1Point;
+    // use core::poseidon::PoseidonTrait;
 
     //events
     #[event]
     #[derive(Drop, starknet::Event)]
     enum Event {
         ManufacturerRegistered: ManufacturerRegistered,
+        DebugHash: DebugHash,
+        AfterName: AfterName,
+        AfterUniqueId: AfterUniqueId,
+        AfterDate: AfterDate,
+        AfterMetadata: AfterMetadata,
+        AfterOwner: AfterOwner,
+        AfterSerial: AfterSerial,
+        Meta: Meta,
+        InMeta: InMeta,
     }
 
     //storage
@@ -42,11 +60,9 @@ pub mod Authenticity {
         self.owner.write(owner_addr);
     }
 
-    // 0x04caea06ed9c48e432f702d0da5dc2446bf7543837f0d2cc3a5f141d5224611c
 
     #[abi(embed_v0)]
     impl Authenticity of IAuthenticity<ContractState> {
-
         fn manufacturer_registers(ref self: ContractState, manufacturer_name: felt252) {
             let caller = get_caller_address();
             address_zero_check(caller);
@@ -66,13 +82,13 @@ pub mod Authenticity {
 
             self.names.entry(manufacturer_name).write(caller);
             self.manufacturers.entry(caller).write(manufacturer);
-            
 
             self.emit(ManufacturerRegistered { manufacturer_address: caller, manufacturer_name });
         }
 
-        fn get_manufacturer_address_by_name(self: @ContractState, manufacturer_name: felt252) -> ContractAddress {
-
+        fn get_manufacturer_address_by_name(
+            self: @ContractState, manufacturer_name: felt252,
+        ) -> ContractAddress {
             let manufacturer_addr = self.names.entry(manufacturer_name).read();
             assert!(!manufacturer_addr.is_zero(), "{:?} DOES_NOT_EXIST", manufacturer_name);
 
@@ -111,46 +127,44 @@ pub mod Authenticity {
         }
 
         // NOT YET TESTED
-        fn verify_signature(
-            self: @ContractState, certificate: Certificate, signature: Signature,
-        ) -> bool {
+        // fn verify_signature(
+        //     self: @ContractState, certificate: Certificate, signature: Signature,
+        // ) -> bool {
 
-            // to hash certificate data
-            let mut state = PedersenTrait::new(0);
-            state = state.update_with(certificate.name);
-            state = state.update_with(certificate.unique_id);
-            state = state.update_with(certificate.serial);
-            state = state.update_with(certificate.date);
-            state = state.update_with(certificate.owner);
-            let metadata_hash = hash_array(certificate.metadata);
-            state = state.update_with(metadata_hash);
-            let message_hash = state.finalize();
+        //     // to hash certificate data
+        //     let mut state = PedersenTrait::new(0);
+        //     state = state.update_with(certificate.name);
+        //     state = state.update_with(certificate.unique_id);
+        //     state = state.update_with(certificate.serial);
+        //     state = state.update_with(certificate.date);
+        //     state = state.update_with(certificate.owner);
+        //     let metadata_hash = hash_array(certificate.metadata);
+        //     state = state.update_with(metadata_hash);
+        //     let message_hash = state.finalize();
 
-            
-            let manufacturer = self.get_manufacturer_address(certificate.owner);
-            let is_valid = check_ecdsa_signature(
-                message_hash,
-                manufacturer.into(),
-                signature.r,
-                signature.s,
-            );
+        //     let manufacturer = self.get_manufacturer_address(certificate.owner);
+        //     let is_valid = check_ecdsa_signature(
+        //         message_hash,
+        //         manufacturer.into(),
+        //         signature.r,
+        //         signature.s,
+        //     );
 
-            assert(is_valid, INVALID_SIGNATURE);
-            true
-        }
+        //     assert(is_valid, INVALID_SIGNATURE);
+        //     true
+        // }
 
-        //NOT YET TESTED
-        fn user_claim_ownership(
-            ref self: ContractState, certificate: Certificate, signature: Signature,
-        ) {
+        fn user_claim_ownership(ref self: ContractState, certificate: Certificate) {
             let caller = get_caller_address();
             address_zero_check(caller);
 
-            let is_valid = self.verify_signature(certificate, signature);
-            assert(is_valid, INVALID_SIGNATURE);
-
-            let manufacturer_name = self.manufacturers.entry(certificate.owner).read().manufacturer_name;
+            let manufacturer_name = self
+                .manufacturers
+                .entry(certificate.owner)
+                .read()
+                .manufacturer_name;
             let ownership = IOwnershipDispatcher { contract_address: self.ownership.read() };
+
             ownership.create_item(caller, certificate, manufacturer_name);
         }
     }

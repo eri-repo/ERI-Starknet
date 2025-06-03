@@ -9,11 +9,9 @@ pub trait IAuthenticity<TContractState> {
     fn get_manufacturer_address(
         self: @TContractState, expected_manufacturer: ContractAddress,
     ) -> ContractAddress;
-    fn verify_signature(
-        self: @TContractState, certificate: Certificate, signature: Signature,
-    ) -> bool;
+  
     fn user_claim_ownership(
-        ref self: TContractState, certificate: Certificate, signature: Signature,
+        ref self: TContractState, certificate: Certificate,
     );
 }
 
