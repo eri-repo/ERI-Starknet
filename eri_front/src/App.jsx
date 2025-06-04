@@ -121,7 +121,6 @@ function App() {
       const manuName =
         events[0]["eri::events::EriEvents::ManufacturerRegistered"]
           .manufacturer_name;
-      console.log("After out-Name:", hex_it(manufacturerAddress));
 
       toast.success(
         `Manufacturer ${manuName} with 
@@ -233,31 +232,21 @@ function App() {
     try {
       const contract = stateChangeContract();
 
-      const { is_registered, manufacturer_address } =
-        await contract.get_manufacturer(account.address);
-      const manufacturerAddress = hex_it(BigInt(manufacturer_address));
+      const typedData = getTypedData(certificate, certificate.owner);
 
-      if (manufacturerAddress !== account.address || !is_registered) {
-        throw new Error("Unauthorized Wallet");
-      }
-
-      const msgHash = await account.hashMessage(
-        getTypedData(certificate, certificate.owner)
-      );
-
-      console.log("Message Hash:", msgHash);
+      console.log("Typed Data:", typedData);
 
       const sign = [signature.v, signature.r, signature.s];
 
-      const isValid4 = await provider.verifyMessageInStarknet(
-        msgHash, // or typedData
+      const isValid = await provider.verifyMessageInStarknet(
+        typedData,
         sign,
         certificate.owner
       );
 
-      console.log("Is Valid: ", isValid4);
+      console.log("Is Valid: ", isValid);
 
-      if (!isValid4) {
+      if (!isValid) {
         throw new Error("Invalid Product");
       }
 
@@ -266,7 +255,7 @@ function App() {
         unique_id: shortString.encodeShortString(certificate.unique_id),
         serial: shortString.encodeShortString(certificate.serial),
         date: BigInt(certificate.date), // Use Number to avoid BigInt issues
-        owner: account.address,
+        owner: certificate.owner,
         metadata: certificate.metadata
           .split(",")
           .map((item) => item.trim())

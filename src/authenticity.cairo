@@ -114,38 +114,11 @@ pub mod Authenticity {
             manufacturer
         }
 
-        // MOVED TO THE FRONTEND
-        // fn verify_signature(
-        //     self: @ContractState, certificate: Certificate, signature: Signature,
-        // ) -> bool {
-
-        //     // to hash certificate data
-        //     let mut state = PedersenTrait::new(0);
-        //     state = state.update_with(certificate.name);
-        //     state = state.update_with(certificate.unique_id);
-        //     state = state.update_with(certificate.serial);
-        //     state = state.update_with(certificate.date);
-        //     state = state.update_with(certificate.owner);
-        //     let metadata_hash = hash_array(certificate.metadata);
-        //     state = state.update_with(metadata_hash);
-        //     let message_hash = state.finalize();
-
-        //     let manufacturer = self.get_manufacturer_address(certificate.owner);
-        //     let is_valid = check_ecdsa_signature(
-        //         message_hash,
-        //         manufacturer.into(),
-        //         signature.r,
-        //         signature.s,
-        //     );
-
-        //     assert(is_valid, INVALID_SIGNATURE);
-        //     true
-        // }
-
         fn user_claim_ownership(ref self: ContractState, certificate: Certificate) {
             let caller = get_caller_address();
             address_zero_check(caller);
 
+            //to get the name of the manufacturer
             let manufacturer_name = self
                 .manufacturers
                 .entry(certificate.owner)
@@ -157,3 +130,32 @@ pub mod Authenticity {
         }
     }
 }
+// MOVED TO THE FRONTEND
+// fn verify_signature(
+//     self: @ContractState, certificate: Certificate, signature: Signature,
+// ) -> bool {
+
+//     // to hash certificate data
+//     let mut state = PedersenTrait::new(0);
+//     state = state.update_with(certificate.name);
+//     state = state.update_with(certificate.unique_id);
+//     state = state.update_with(certificate.serial);
+//     state = state.update_with(certificate.date);
+//     state = state.update_with(certificate.owner);
+//     let metadata_hash = hash_array(certificate.metadata);
+//     state = state.update_with(metadata_hash);
+//     let message_hash = state.finalize();
+
+//     let manufacturer = self.get_manufacturer_address(certificate.owner);
+//     let is_valid = check_ecdsa_signature(
+//         message_hash,
+//         manufacturer.into(),
+//         signature.r,
+//         signature.s,
+//     );
+
+//     assert(is_valid, INVALID_SIGNATURE);
+//     true
+// }
+
+
