@@ -8,10 +8,7 @@ pub mod Authenticity {
     };
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use crate::errors::EriErrors::*;
-    use crate::events::EriEvents::{
-        AfterDate, AfterMetadata, AfterName, AfterOwner, AfterSerial, AfterUniqueId, DebugHash,
-        InMeta, ManufacturerRegistered, Meta,
-    };
+    use crate::events::EriEvents::ManufacturerRegistered;
     use crate::interfaces::{IAuthenticity, IOwnershipDispatcher, IOwnershipDispatcherTrait};
     use crate::utilities::Models::{Certificate, Manufacturer};
     use crate::utilities::address_zero_check;
@@ -29,15 +26,6 @@ pub mod Authenticity {
     #[derive(Drop, starknet::Event)]
     enum Event {
         ManufacturerRegistered: ManufacturerRegistered,
-        DebugHash: DebugHash,
-        AfterName: AfterName,
-        AfterUniqueId: AfterUniqueId,
-        AfterDate: AfterDate,
-        AfterMetadata: AfterMetadata,
-        AfterOwner: AfterOwner,
-        AfterSerial: AfterSerial,
-        Meta: Meta,
-        InMeta: InMeta,
     }
 
     //storage
@@ -126,7 +114,7 @@ pub mod Authenticity {
             manufacturer
         }
 
-        // NOT YET TESTED
+        // MOVED TO THE FRONTEND
         // fn verify_signature(
         //     self: @ContractState, certificate: Certificate, signature: Signature,
         // ) -> bool {

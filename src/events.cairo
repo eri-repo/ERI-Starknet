@@ -42,48 +42,4 @@ pub mod EriEvents {
     pub struct CodeRevoked {
         pub item_hash: felt252,
     }
-
-    #[derive(Drop, starknet::Event)]
-    pub struct DebugHash {
-        pub debug_hash: felt252,
-        pub res: bool,
-    }
-
-    #[derive(Drop, starknet::Event)]
-    pub struct AfterName {
-        pub name: felt252,
-    }
-
-    #[derive(Drop, starknet::Event)]
-    pub struct AfterUniqueId {
-        pub unique_id: felt252,
-    }
-
-    #[derive(Drop, starknet::Event)]
-    pub struct AfterSerial {
-        pub serial: felt252,
-    }
-    #[derive(Drop, starknet::Event)]
-    pub struct AfterDate {
-        pub date: felt252,
-    }
-    #[derive(Drop, starknet::Event)]
-    pub struct AfterOwner {
-        pub owner: felt252,
-    }
-    #[derive(Drop, starknet::Event)]
-    pub struct AfterMetadata {
-        pub metadata: felt252,
-    }
-    #[derive(Drop, starknet::Event)]
-    pub struct Meta {
-        pub meta: felt252,
-    }
-
-    #[derive(Drop, starknet::Event)]
-    pub struct InMeta {
-        pub input: felt252,
-        pub meta: felt252,
-    }
 }
-

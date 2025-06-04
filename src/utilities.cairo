@@ -96,12 +96,4 @@ pub fn address_zero_check(address: ContractAddress) {
 //Ownership: 0x4c580b1e29a4ed5deedabe33b4ae7f3d8e87117b7b2901dfe13d3e5c64ff69b
 //Authenticity: 0x7d1aae0ad4d3aa1fe7a76186e56d64458db90a045f1ef41a80abe38382b4753
 
-// QWERTY
-// POP
-// ELON
-
-// SAM1
-// DUPL
-// BENT
-
 

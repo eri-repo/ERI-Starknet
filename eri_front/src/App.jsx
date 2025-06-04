@@ -1,659 +1,583 @@
-import {useState} from "react";
+import { useState } from "react";
 import "./App.css";
-import {
-    Contract,
-    RpcProvider,
-    shortString,
-} from "starknet";
-import {getTypedData} from "./assets/typedData.js";
-import {ABI} from "./assets/abi";
+import { Contract, RpcProvider, shortString } from "starknet";
+import { getTypedData } from "./assets/typedData.js";
+import { ABI } from "./assets/abi";
 import BigNumber from "bignumber.js";
-import {connect, disconnect} from "starknetkit";
-import {toast, ToastContainer} from "react-toastify";
+import { connect, disconnect } from "starknetkit";
+import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 function App() {
-    const [provider, setProvider] = useState(null);
-    const [account, setAccount] = useState(null);
-    const [address, setAddress] = useState(null);
-    const [manufacturerName, setManufacturerName] = useState("");
-    const [certificate, setCertificate] = useState({
-        name: "",
-        unique_id: "",
-        serial: "",
-        date: "",
-        owner: "",
-        metadata: "",
-    });
-    // const [certi, setCerti] = useState({
-    //     name: "",
-    //     unique_id: "",
-    //     serial: "",
-    //     date: "",
-    //     owner: "",
-    //     metadata: "",
-    // });
-    const [signature, setSignature] = useState({
-        v: "",
-        r: "",
-        s: ""
-    });
-    const [queryAddress1, setQueryAddress1] = useState("");
-    const [queryAddress2, setQueryAddress2] = useState("");
-    const [queryName, setQueryName] = useState("");
-    const [manufacturerDetails, setManufacturerDetails] = useState("");
-    const [manufacturerAddress1, setManufacturerAddress1] = useState("");
-    const [manufacturerAddress2, setManufacturerAddress2] = useState("");
-    const [signatureResult, setSignatureResult] = useState("");
-    const [formVisible, setFormVisible] = useState("");
+  const [provider, setProvider] = useState(null);
+  const [account, setAccount] = useState(null);
+  const [address, setAddress] = useState(null);
+  const [manufacturerName, setManufacturerName] = useState("");
+  const [certificate, setCertificate] = useState({
+    name: "",
+    unique_id: "",
+    serial: "",
+    date: "",
+    owner: "",
+    metadata: "",
+  });
+  const [signature, setSignature] = useState({
+    v: "",
+    r: "",
+    s: "",
+  });
+  const [queryAddress1, setQueryAddress1] = useState("");
+  const [queryAddress2, setQueryAddress2] = useState("");
+  const [queryName, setQueryName] = useState("");
+  const [manufacturerDetails, setManufacturerDetails] = useState("");
+  const [manufacturerAddress1, setManufacturerAddress1] = useState("");
+  const [manufacturerAddress2, setManufacturerAddress2] = useState("");
+  const [signatureResult, setSignatureResult] = useState("");
+  const [formVisible, setFormVisible] = useState("");
 
-    const {VITE_SEPOLIA_URL} = import.meta.env;
+  const { VITE_SEPOLIA_URL, VITE_ACCOUNT_ADDRESS } = import.meta.env;
 
-    // const CONTRACT_ADDRESS =    "0x7d1aae0ad4d3aa1fe7a76186e56d64458db90a045f1ef41a80abe38382b4753";
-    const CONTRACT_ADDRESS = "0x31a597d5b868c652ef09fdc685b276e3c3eba8bbe03c28e6aad45ad670593a8";
+  const PROVIDER = new RpcProvider({
+    nodeUrl: VITE_SEPOLIA_URL,
+  });
 
+  const connectWallet = async () => {
+    if (address) {
+      await disconnect();
+      setProvider(null);
+      setAccount(null);
+      setAddress(null);
+      toast.success("Wallet disconnected");
+      return;
+    }
 
-    const PROVIDER = new RpcProvider({
-        nodeUrl: VITE_SEPOLIA_URL,
-    });
+    try {
+      const { wallet } = await connect({
+        provider: PROVIDER,
+      });
 
-    const connectWallet = async () => {
-        if (address) {
-            await disconnect(); //I might remove the await
-            setProvider(null);
-            setAccount(null);
-            setAddress(null);
-            toast.success("Wallet disconnected");
-            return;
-        }
+      if (wallet && wallet.isConnected) {
+        setProvider(wallet.provider);
+        setAccount(wallet.account);
+        setAddress(wallet.selectedAddress);
+        toast.success(`Connected: ${wallet.selectedAddress.slice(0, 10)}...`);
+      } else {
+        toast.error("Failed to connect wallet");
+      }
+    } catch (error) {
+      toast.error(`Error: ${error.message}`);
+    }
+  };
 
-        try {
-            const {wallet} = await connect({
-                provider: PROVIDER,
-            });
+  const checkConnection = () => {
+    if (!address) {
+      toast.error("Connect wallet!");
+      return false;
+    }
+    return true;
+  };
 
-            if (wallet && wallet.isConnected) {
-                setProvider(wallet.provider);
-                setAccount(wallet.account);
-                setAddress(wallet.selectedAddress);
-                toast.success(`Connected: ${wallet.selectedAddress.slice(0, 10)}...`);
-            } else {
-                toast.error("Failed to connect wallet");
-            }
-        } catch (error) {
-            toast.error(`Error: ${error.message}`);
-        }
-    };
+  const viewContract = () => {
+    return new Contract(ABI, VITE_ACCOUNT_ADDRESS, provider);
+  };
 
-    const checkConnection = () => {
-        if (!address) {
-            toast.error("Connect wallet!");
-            return false;
-        }
-        return true;
-    };
+  const stateChangeContract = () => {
+    return new Contract(ABI, VITE_ACCOUNT_ADDRESS, account);
+  };
 
-    const viewContract = () => {
-        return new Contract(ABI, CONTRACT_ADDRESS, provider);
-    };
+  const convertFelt252ToString = (felt252) => {
+    try {
+      const bn = BigNumber(felt252);
+      const hex_it = "0x" + bn.toString(16);
+      return shortString.decodeShortString(hex_it);
+    } catch (error) {
+      toast.error(`Error decoding felt252: ${error.message}`);
+      return "";
+    }
+  };
 
-    const stateChangeContract = () => {
-        return new Contract(ABI, CONTRACT_ADDRESS, account);
-    };
+  const hex_it = (value) => {
+    return "0x" + BigNumber(value).toString(16);
+  };
 
-    const convertFelt252ToString = (felt252) => {
-        try {
-            const bn = BigNumber(felt252);
-            const hex_it = "0x" + bn.toString(16);
-            return shortString.decodeShortString(hex_it);
-        } catch (error) {
-            toast.error(`Error decoding felt252: ${error.message}`);
-            return "";
-        }
-    };
+  const registerManufacturer = async () => {
+    if (!checkConnection()) return;
+    if (!account) return toast.error("Account not initialized");
 
-    const hex_it = (value) => {
-        return "0x" + BigNumber(value).toString(16);
-    };
+    try {
+      const contract = stateChangeContract();
+      const feltName = shortString.encodeShortString(manufacturerName);
 
-    const registerManufacturer = async () => {
-        if (!checkConnection()) return;
-        if (!account) return toast.error("Account not initialized");
+      const res = await contract.manufacturer_registers(feltName);
+      const txHash = res?.transaction_hash;
+      const txResult = await provider.waitForTransaction(txHash);
+      const events = contract.parseEvents(txResult);
 
-        try {
-            const contract = stateChangeContract();
-            const feltName = shortString.encodeShortString(manufacturerName);
+      console.log(events);
 
-            const res = await contract.manufacturer_registers(feltName);
+      const manufacturerAddress =
+        events[0]["eri::events::EriEvents::ManufacturerRegistered"]
+          .manufacturer_address;
+      const manuName =
+        events[0]["eri::events::EriEvents::ManufacturerRegistered"]
+          .manufacturer_name;
+      console.log("After out-Name:", hex_it(manufacturerAddress));
 
-            const txHash = res?.transaction_hash;
-
-            const txResult = await provider.waitForTransaction(txHash);
-
-            const events = contract.parseEvents(txResult);
-
-            console.log(events);
-
-            const manufacturerAddress = events[0]["eri::events::EriEvents::ManufacturerRegistered"].manufacturer_address;
-            const manuName = events[0]["eri::events::EriEvents::ManufacturerRegistered"].manufacturer_name;
-            console.log("After out-Name:", hex_it(manufacturerAddress));
-
-            toast.success(
-                `Manufacturer ${manuName} with 
+      toast.success(
+        `Manufacturer ${manuName} with 
                 Address ${manufacturerAddress} registered successfully`
-            );
-            setManufacturerName("");
-        } catch (error) {
-            toast.error(`Error: ${error.message}`);
-        }
-    };
+      );
+      setManufacturerName("");
+    } catch (error) {
+      toast.error(`Error: ${error.message}`);
+    }
+  };
 
-    const getManufacturer = async () => {
-        if (!checkConnection()) return;
+  const getManufacturer = async () => {
+    if (!checkConnection()) return;
 
-        try {
-            const contract = viewContract();
-            const result = await contract.get_manufacturer(queryAddress1);
-            console.log(result);
-            const decodedName = convertFelt252ToString(result.manufacturer_name);
+    try {
+      const contract = viewContract();
+      const result = await contract.get_manufacturer(queryAddress1);
+      console.log(result);
+      const decodedName = convertFelt252ToString(result.manufacturer_name);
 
-            setManufacturerDetails(
-                `Address: ${hex_it(result.manufacturer_address)}, 
+      setManufacturerDetails(
+        `Address: ${hex_it(result.manufacturer_address)}, 
         Name: ${decodedName}, 
         Registered: ${result.is_registered}, 
         Timestamp: ${result.registered_at}`
-            );
-        } catch (error) {
-            toast.error(`Error: ${error.message}`);
-        }
-    };
+      );
+    } catch (error) {
+      toast.error(`Error: ${error.message}`);
+    }
+  };
 
-    const getManufacturerAddressByName = async () => {
-        if (!checkConnection()) return;
+  const getManufacturerAddressByName = async () => {
+    if (!checkConnection()) return;
 
-        try {
-            const contract = viewContract();
-            const feltName = shortString.encodeShortString(queryName);
-            const result = await contract.get_manufacturer_address_by_name(feltName);
-            setManufacturerAddress1(hex_it(result));
-        } catch (error) {
-            toast.error(`Error: ${error.message}`);
-        }
-    };
+    try {
+      const contract = viewContract();
+      const feltName = shortString.encodeShortString(queryName);
+      const result = await contract.get_manufacturer_address_by_name(feltName);
+      setManufacturerAddress1(hex_it(result));
+    } catch (error) {
+      toast.error(`Error: ${error.message}`);
+    }
+  };
 
-    const getManufacturerAddress = async () => {
-        if (!checkConnection()) return;
+  const getManufacturerAddress = async () => {
+    if (!checkConnection()) return;
 
-        try {
-            const contract = viewContract();
-            const result = await contract.get_manufacturer_address(queryAddress2);
-            setManufacturerAddress2(hex_it(result));
-        } catch (error) {
-            toast.error(`Error: ${error.message}`);
-        }
-    };
+    try {
+      const contract = viewContract();
+      const result = await contract.get_manufacturer_address(queryAddress2);
+      setManufacturerAddress2(hex_it(result));
+    } catch (error) {
+      toast.error(`Error: ${error.message}`);
+    }
+  };
 
-    const verifySignature = async () => {
+  const verifySignature = async () => {
+    if (!checkConnection()) return;
+    if (!account) return toast.error("Account not initialized");
 
-        if (!checkConnection()) return;
-        if (!account) return toast.error("Account not initialized");
+    try {
+      const contract = viewContract();
 
-        try {
-            const contract = viewContract();
+      // to create typed data for signing
+      const typedData = getTypedData(certificate, account.address);
 
-            // to create typed data for signing
-            const typedData = getTypedData(certificate, account.address);
+      console.log("Typed Data:", JSON.stringify(typedData, null, 2));
 
-            console.log("Typed Data:", JSON.stringify(typedData, null, 2));
+      // sign the typed data
+      const signature = await account.signMessage(typedData);
+      console.log("Signature:", signature);
 
-            // sign the typed data
-            const signature = await account.signMessage(typedData);
-            console.log("Signature:", signature);
+      if (!signature || !Array.isArray(signature) || signature.length < 3) {
+        return new Error("Invalid signature format returned by wallet");
+      }
 
-            if (!signature || !Array.isArray(signature) || signature.length < 3) {
-                return new Error("Invalid signature format returned by wallet");
-            }
+      const { is_registered, manufacturer_address } =
+        await contract.get_manufacturer(account.address);
+      const manufacturerAddress = hex_it(BigInt(manufacturer_address));
 
-            const {is_registered, manufacturer_address} = await contract.get_manufacturer(account.address);
-            const manufacturerAddress = hex_it(BigInt(manufacturer_address));
+      if (manufacturerAddress !== account.address || !is_registered) {
+        throw new Error("Unauthorized Wallet");
+      }
 
-            if (manufacturerAddress !== account.address || !is_registered) {
-                throw new Error("Unauthorized Wallet");
-            }
+      const msgHash = await account.hashMessage(typedData);
 
-            const msgHash = await account.hashMessage(typedData);
+      console.log("Message Hash:", msgHash);
 
-            console.log("Message Hash:", msgHash);
+      const isValid4 = await provider.verifyMessageInStarknet(
+        msgHash, // or typedData
+        signature,
+        account.address
+      );
 
-            const isValid4 = await provider.verifyMessageInStarknet(
-                msgHash, // or typedData
-                signature,
-                account.address
-            );
+      console.log("Is Valid: ", isValid4);
 
-            console.log("Is Valid: ", isValid4);
-            //===========================
+      setSignatureResult(`Signature valid: ${isValid4}`);
+      toast.success(`Signature verification: ${isValid4}`);
+    } catch (error) {
+      console.error("Signature error:", error);
+      toast.error(`Error: ${error.message}`);
+    }
+  };
 
-            // const cert = {
-            //     name: shortString.encodeShortString(certificate.name),
-            //     unique_id: shortString.encodeShortString(certificate.unique_id),
-            //     serial: shortString.encodeShortString(certificate.serial),
-            //     date: BigInt(certificate.date), // Use Number to avoid BigInt issues
-            //     owner: account.address,
-            //     // account.address.startsWith("0x0")
-            //     // ? account.address
-            //     // : "0x0" + account.address.slice(2),
-            //     metadata: certificate.metadata
-            //         .split(",")
-            //         .map((item) => item.trim())
-            //         .filter(Boolean)
-            //         .map((item) => shortString.encodeShortString(item)),
-            // };
-            //
-            // console.log("Metadata: ", cert.metadata);
+  const claimOwnership = async () => {
+    if (!checkConnection()) return;
+    if (!account) return toast.error("Account not initialized");
 
-            // const sig = {
-            //     r: signature[1], // Adjust based on wallet output
-            //     s: signature[2],
-            // };
+    try {
+      const contract = stateChangeContract();
 
+      const { is_registered, manufacturer_address } =
+        await contract.get_manufacturer(account.address);
+      const manufacturerAddress = hex_it(BigInt(manufacturer_address));
 
-            // console.log("Calling verify_signature with:", JSON.stringify({cert, sig}, null, 2));
+      if (manufacturerAddress !== account.address || !is_registered) {
+        throw new Error("Unauthorized Wallet");
+      }
 
-            // const result = await contract.verify_signature(cert, sig);
-            //
-            // const txHash = result?.transaction_hash;
-            //
-            // console.log("Tnx Hash:", txHash);
-            //
-            // const txResult = await provider.waitForTransaction(txHash);
-            //
-            // const events = contract.parseEvents(txResult);
-            //
-            // console.log(events);
-            // //
-            // const afterName = events[0]["eri::events::EriEvents::AfterName"].name;
-            // console.log("After out-Name:", hex_it(afterName));
-            //
-            // const afterId = events[1]["eri::events::EriEvents::AfterUniqueId"].unique_id;
-            // console.log("After out-ID:", hex_it(afterId));
-            //
-            // const serial = events[2]["eri::events::EriEvents::AfterSerial"].serial;
-            // console.log("After out-Serial:", hex_it(serial));
-            //
-            // const date = events[3]["eri::events::EriEvents::AfterDate"].date;
-            // console.log("After out-Date:", hex_it(date));
-            //
-            // const own = events[4]["eri::events::EriEvents::AfterOwner"].owner;
-            // console.log("After out-Owner:", hex_it(own));
-            //
-            // const meta = events[5]["eri::events::EriEvents::AfterMetadata"].metadata;
-            // console.log("After out-Metadata:", hex_it(meta));
-            //
-            // const debugHash = events[6]["eri::events::EriEvents::DebugHash"].debug_hash;
-            // const resEvent = events[6]["eri::events::EriEvents::DebugHash"].res;
-            // console.log(`Debug Hash: ${hex_it(debugHash)}`);
-            // console.log(`Result: ${resEvent}`);
+      const msgHash = await account.hashMessage(
+        getTypedData(certificate, certificate.owner)
+      );
 
-            setSignatureResult(`Signature valid: ${isValid4}`);
-            toast.success(`Signature verification: ${isValid4}`);
-        } catch (error) {
-            console.error("Signature error:", error);
-            toast.error(`Error: ${error.message}`);
-        }
-    };
+      console.log("Message Hash:", msgHash);
 
-    const claimOwnership = async () => {
-        if (!checkConnection()) return;
-        if (!account) return toast.error("Account not initialized");
+      const sign = [signature.v, signature.r, signature.s];
 
-        try {
-            const contract = stateChangeContract();
+      const isValid4 = await provider.verifyMessageInStarknet(
+        msgHash, // or typedData
+        sign,
+        certificate.owner
+      );
 
-            const {is_registered, manufacturer_address} = await contract.get_manufacturer(account.address);
-            const manufacturerAddress = hex_it(BigInt(manufacturer_address));
+      console.log("Is Valid: ", isValid4);
 
-            if (manufacturerAddress !== account.address || !is_registered) {
-                throw new Error("Unauthorized Wallet");
-            }
+      if (!isValid4) {
+        throw new Error("Invalid Product");
+      }
 
-            const msgHash = await account.hashMessage(
-                getTypedData(certificate, certificate.owner)
-            );
+      const cert = {
+        name: shortString.encodeShortString(certificate.name),
+        unique_id: shortString.encodeShortString(certificate.unique_id),
+        serial: shortString.encodeShortString(certificate.serial),
+        date: BigInt(certificate.date), // Use Number to avoid BigInt issues
+        owner: account.address,
+        metadata: certificate.metadata
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .map((item) => shortString.encodeShortString(item)),
+      };
 
-            console.log("Message Hash:", msgHash);
+      const res = await contract.user_claim_ownership(cert);
 
-            const sign = [signature.v, signature.r, signature.s];
+      const txHash = res?.transaction_hash;
+      await provider.waitForTransaction(txHash);
 
-            const isValid4 = await provider.verifyMessageInStarknet(
-                msgHash, // or typedData
-                sign,
-                certificate.owner
-            );
+      toast.success(`${certificate.unique_id} claimed successfully`);
+    } catch (error) {
+      toast.error(`Error: ${error.message}`);
+    }
+  };
 
-            console.log("Is Valid: ", isValid4);
+  return (
+    <div className="app-container">
+      <header className="header">
+        <button onClick={connectWallet} className="connect-btn">
+          {address ? `${address.substring(0, 10)}...` : "Connect Wallet"}
+        </button>
+      </header>
 
-            if (!isValid4) {
-                throw new Error("Invalid Product");
-            }
-
-            const cert = {
-                name: shortString.encodeShortString(certificate.name),
-                unique_id: shortString.encodeShortString(certificate.unique_id),
-                serial: shortString.encodeShortString(certificate.serial),
-                date: BigInt(certificate.date), // Use Number to avoid BigInt issues
-                owner: account.address,
-                metadata: certificate.metadata
-                    .split(",")
-                    .map((item) => item.trim())
-                    .filter(Boolean)
-                    .map((item) => shortString.encodeShortString(item)),
-            };
-
-            const res = await contract.user_claim_ownership(cert);
-
-            const txHash = res?.transaction_hash;
-            await provider.waitForTransaction(txHash);
-
-            toast.success(`${certificate.unique_id} claimed successfully`);
-        } catch (error) {
-            toast.error(`Error: ${error.message}`);
-        }
-    };
-
-    return (
-        <div className="app-container">
-            <header className="header">
-                <button onClick={connectWallet} className="connect-btn">
-                    {address ? `${address.substring(0, 10)}...` : "Connect Wallet"}
-                </button>
-            </header>
-
-            <h1 className="title">Starknet Authenticity</h1>
-            <div className="main-content">
-                {/* Card 1: View Functions */}
-                <div className="card card-1">
-                    <div className="group-1">
-                        <div>
-                            <button onClick={() => setFormVisible("getManufacturer")}>
-                                Get Manufacturer
-                            </button>
-                            {formVisible === "getManufacturer" && (
-                                <form
-                                    className="function-form"
-                                    onSubmit={(e) => {
-                                        e.preventDefault();
-                                        getManufacturer();
-                                    }}
-                                >
-                                    <input
-                                        type="text"
-                                        placeholder="Manufacturer Address"
-                                        value={queryAddress1}
-                                        onChange={(e) => setQueryAddress1(e.target.value)}
-                                    />
-                                    <button type="submit">Submit</button>
-                                    <h2 className="outputs">{manufacturerDetails || " "}</h2>
-                                </form>
-                            )}
-                        </div>
-
-                        <div className="separator"></div>
-                        <div>
-                            <button
-                                onClick={() => setFormVisible("getManufacturerAddressByName")}
-                            >
-                                Get Address by Name
-                            </button>
-                            {formVisible === "getManufacturerAddressByName" && (
-                                <form
-                                    className="function-form"
-                                    onSubmit={(e) => {
-                                        e.preventDefault();
-                                        getManufacturerAddressByName();
-                                    }}
-                                >
-                                    <input
-                                        type="text"
-                                        placeholder="Manufacturer Name"
-                                        value={queryName}
-                                        onChange={(e) => setQueryName(e.target.value)}
-                                    />
-                                    <button type="submit">Submit</button>
-                                    <h2 className="outputs">{manufacturerAddress1 || " "}</h2>
-                                </form>
-                            )}
-                        </div>
-
-                        <div className="separator"></div>
-                        <div>
-                            <button onClick={() => setFormVisible("getManufacturerAddress")}>
-                                Get Manufacturer Address
-                            </button>
-                            {formVisible === "getManufacturerAddress" && (
-                                <form
-                                    className="function-form"
-                                    onSubmit={(e) => {
-                                        e.preventDefault();
-                                        getManufacturerAddress();
-                                    }}
-                                >
-                                    <input
-                                        type="text"
-                                        placeholder="Manufacturer Address"
-                                        value={queryAddress2}
-                                        onChange={(e) => setQueryAddress2(e.target.value)}
-                                    />
-                                    <button type="submit">Submit</button>
-                                    <h2 className="outputs">{manufacturerAddress2 || " "}</h2>
-                                </form>
-                            )}
-                        </div>
-
-                        <div className="separator"></div>
-
-                        <div>
-                            <button onClick={() => setFormVisible("verifySignature")}>
-                                Verify Signature
-                            </button>
-                            {formVisible === "verifySignature" && (
-                                <form
-                                    className="function-form"
-                                    onSubmit={(e) => {
-                                        e.preventDefault();
-                                        verifySignature();
-                                    }}
-                                >
-                                    <input
-                                        type="text"
-                                        placeholder="Certificate Name"
-                                        value={certificate.name}
-                                        onChange={(e) =>
-                                            setCertificate({...certificate, name: e.target.value})
-                                        }
-                                    />
-                                    <input
-                                        type="text"
-                                        placeholder="Unique ID"
-                                        value={certificate.unique_id}
-                                        onChange={(e) =>
-                                            setCertificate({
-                                                ...certificate,
-                                                unique_id: e.target.value,
-                                            })
-                                        }
-                                    />
-                                    <input
-                                        type="text"
-                                        placeholder="Serial"
-                                        value={certificate.serial}
-                                        onChange={(e) =>
-                                            setCertificate({...certificate, serial: e.target.value})
-                                        }
-                                    />
-                                    <input
-                                        type="number"
-                                        placeholder="Date (Unix timestamp)"
-                                        value={certificate.date}
-                                        onChange={(e) =>
-                                            setCertificate({...certificate, date: e.target.value})
-                                        }
-                                    />
-                                    <input
-                                        type="text"
-                                        placeholder="Metadata (comma-separated)"
-                                        value={certificate.metadata}
-                                        onChange={(e) =>
-                                            setCertificate({
-                                                ...certificate,
-                                                metadata: e.target.value,
-                                            })
-                                        }
-                                    />
-                                    <button type="submit">Submit</button>
-                                    <h2 className="outputs">{signatureResult || " "}</h2>
-                                </form>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Card 2: State-Changing Functions */}
-                <div className="card card-2">
-                    <div className="group-2">
-                        <div>
-                            <button onClick={() => setFormVisible("registerManufacturer")}>
-                                Register Manufacturer
-                            </button>
-                            {formVisible === "registerManufacturer" && (
-                                <form
-                                    className="function-form"
-                                    onSubmit={(e) => {
-                                        e.preventDefault();
-                                        registerManufacturer();
-                                    }}
-                                >
-                                    <input
-                                        type="text"
-                                        placeholder="Manufacturer Name"
-                                        value={manufacturerName}
-                                        onChange={(e) => setManufacturerName(e.target.value)}
-                                    />
-                                    <button type="submit">Submit</button>
-                                </form>
-                            )}
-                        </div>
-
-                        <div className="separator"></div>
-                        <div>
-                            <button onClick={() => setFormVisible("claimOwnership")}>
-                                Claim Ownership
-                            </button>
-                            {formVisible === "claimOwnership" && (
-                                <form
-                                    className="function-form"
-                                    onSubmit={(e) => {
-                                        e.preventDefault();
-                                        claimOwnership();
-                                    }}
-                                >
-                                    <input
-                                        type="text"
-                                        placeholder="Certificate Name"
-                                        value={certificate.name}
-                                        onChange={(e) =>
-                                            setCertificate({...certificate, name: e.target.value})
-                                        }
-                                    />
-                                    <input
-                                        type="text"
-                                        placeholder="Unique ID"
-                                        value={certificate.unique_id}
-                                        onChange={(e) =>
-                                            setCertificate({
-                                                ...certificate,
-                                                unique_id: e.target.value,
-                                            })
-                                        }
-                                    />
-                                    <input
-                                        type="text"
-                                        placeholder="Serial"
-                                        value={certificate.serial}
-                                        onChange={(e) =>
-                                            setCertificate({...certificate, serial: e.target.value})
-                                        }
-                                    />
-                                    <input
-                                        type="number"
-                                        placeholder="Date (Unix timestamp)"
-                                        value={certificate.date}
-                                        onChange={(e) =>
-                                            setCertificate({...certificate, date: e.target.value})
-                                        }
-                                    />
-                                    <input
-                                        type="text"
-                                        placeholder="Owner Address"
-                                        value={certificate.owner}
-                                        onChange={(e) =>
-                                            setCertificate({...certificate, owner: e.target.value})
-                                        }
-                                    />
-                                    <input
-                                        type="text"
-                                        placeholder="Metadata (comma-separated)"
-                                        value={certificate.metadata}
-                                        onChange={(e) =>
-                                            setCertificate({
-                                                ...certificate,
-                                                metadata: e.target.value,
-                                            })
-                                        }
-                                    />
-                                    <input
-                                        type="number"
-                                        placeholder="v"
-                                        value={signature.v}
-                                        onChange={(e) =>
-                                            setSignature({
-                                                ...signature,
-                                                v: e.target.value,
-                                            })
-                                        }
-                                    />
-                                    <input
-                                        type="number"
-                                        placeholder="r"
-                                        value={signature.r}
-                                        onChange={(e) =>
-                                            setSignature({
-                                                ...signature,
-                                                r: e.target.value,
-                                            })
-                                        }
-                                    />
-                                    <input
-                                        type="number"
-                                        placeholder="s"
-                                        value={signature.s}
-                                        onChange={(e) =>
-                                            setSignature({
-                                                ...signature,
-                                                s: e.target.value,
-                                            })
-                                        }
-                                    />
-                                    <button type="submit">Submit</button>
-                                </form>
-                            )}
-                        </div>
-                    </div>
-                </div>
+      <h1 className="title">Starknet Authenticity</h1>
+      <div className="main-content">
+        {/* Card 1: View Functions */}
+        <div className="card card-1">
+          <div className="group-1">
+            <div>
+              <button onClick={() => setFormVisible("getManufacturer")}>
+                Get Manufacturer
+              </button>
+              {formVisible === "getManufacturer" && (
+                <form
+                  className="function-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    getManufacturer();
+                  }}
+                >
+                  <input
+                    type="text"
+                    placeholder="Manufacturer Address"
+                    value={queryAddress1}
+                    onChange={(e) => setQueryAddress1(e.target.value)}
+                  />
+                  <button type="submit">Submit</button>
+                  <h2 className="outputs">{manufacturerDetails || " "}</h2>
+                </form>
+              )}
             </div>
-            <ToastContainer/>
+
+            <div className="separator"></div>
+            <div>
+              <button
+                onClick={() => setFormVisible("getManufacturerAddressByName")}
+              >
+                Get Address by Name
+              </button>
+              {formVisible === "getManufacturerAddressByName" && (
+                <form
+                  className="function-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    getManufacturerAddressByName();
+                  }}
+                >
+                  <input
+                    type="text"
+                    placeholder="Manufacturer Name"
+                    value={queryName}
+                    onChange={(e) => setQueryName(e.target.value)}
+                  />
+                  <button type="submit">Submit</button>
+                  <h2 className="outputs">{manufacturerAddress1 || " "}</h2>
+                </form>
+              )}
+            </div>
+
+            <div className="separator"></div>
+            <div>
+              <button onClick={() => setFormVisible("getManufacturerAddress")}>
+                Get Manufacturer Address
+              </button>
+              {formVisible === "getManufacturerAddress" && (
+                <form
+                  className="function-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    getManufacturerAddress();
+                  }}
+                >
+                  <input
+                    type="text"
+                    placeholder="Manufacturer Address"
+                    value={queryAddress2}
+                    onChange={(e) => setQueryAddress2(e.target.value)}
+                  />
+                  <button type="submit">Submit</button>
+                  <h2 className="outputs">{manufacturerAddress2 || " "}</h2>
+                </form>
+              )}
+            </div>
+
+            <div className="separator"></div>
+
+            <div>
+              <button onClick={() => setFormVisible("verifySignature")}>
+                Verify Signature
+              </button>
+              {formVisible === "verifySignature" && (
+                <form
+                  className="function-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    verifySignature();
+                  }}
+                >
+                  <input
+                    type="text"
+                    placeholder="Certificate Name"
+                    value={certificate.name}
+                    onChange={(e) =>
+                      setCertificate({ ...certificate, name: e.target.value })
+                    }
+                  />
+                  <input
+                    type="text"
+                    placeholder="Unique ID"
+                    value={certificate.unique_id}
+                    onChange={(e) =>
+                      setCertificate({
+                        ...certificate,
+                        unique_id: e.target.value,
+                      })
+                    }
+                  />
+                  <input
+                    type="text"
+                    placeholder="Serial"
+                    value={certificate.serial}
+                    onChange={(e) =>
+                      setCertificate({ ...certificate, serial: e.target.value })
+                    }
+                  />
+                  <input
+                    type="number"
+                    placeholder="Date (Unix timestamp)"
+                    value={certificate.date}
+                    onChange={(e) =>
+                      setCertificate({ ...certificate, date: e.target.value })
+                    }
+                  />
+                  <input
+                    type="text"
+                    placeholder="Metadata (comma-separated)"
+                    value={certificate.metadata}
+                    onChange={(e) =>
+                      setCertificate({
+                        ...certificate,
+                        metadata: e.target.value,
+                      })
+                    }
+                  />
+                  <button type="submit">Submit</button>
+                  <h2 className="outputs">{signatureResult || " "}</h2>
+                </form>
+              )}
+            </div>
+          </div>
         </div>
-    );
+
+        {/* Card 2: State-Changing Functions */}
+        <div className="card card-2">
+          <div className="group-2">
+            <div>
+              <button onClick={() => setFormVisible("registerManufacturer")}>
+                Register Manufacturer
+              </button>
+              {formVisible === "registerManufacturer" && (
+                <form
+                  className="function-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    registerManufacturer();
+                  }}
+                >
+                  <input
+                    type="text"
+                    placeholder="Manufacturer Name"
+                    value={manufacturerName}
+                    onChange={(e) => setManufacturerName(e.target.value)}
+                  />
+                  <button type="submit">Submit</button>
+                </form>
+              )}
+            </div>
+
+            <div className="separator"></div>
+            <div>
+              <button onClick={() => setFormVisible("claimOwnership")}>
+                Claim Ownership
+              </button>
+              {formVisible === "claimOwnership" && (
+                <form
+                  className="function-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    claimOwnership();
+                  }}
+                >
+                  <input
+                    type="text"
+                    placeholder="Certificate Name"
+                    value={certificate.name}
+                    onChange={(e) =>
+                      setCertificate({ ...certificate, name: e.target.value })
+                    }
+                  />
+                  <input
+                    type="text"
+                    placeholder="Unique ID"
+                    value={certificate.unique_id}
+                    onChange={(e) =>
+                      setCertificate({
+                        ...certificate,
+                        unique_id: e.target.value,
+                      })
+                    }
+                  />
+                  <input
+                    type="text"
+                    placeholder="Serial"
+                    value={certificate.serial}
+                    onChange={(e) =>
+                      setCertificate({ ...certificate, serial: e.target.value })
+                    }
+                  />
+                  <input
+                    type="number"
+                    placeholder="Date (Unix timestamp)"
+                    value={certificate.date}
+                    onChange={(e) =>
+                      setCertificate({ ...certificate, date: e.target.value })
+                    }
+                  />
+                  <input
+                    type="text"
+                    placeholder="Owner Address"
+                    value={certificate.owner}
+                    onChange={(e) =>
+                      setCertificate({ ...certificate, owner: e.target.value })
+                    }
+                  />
+                  <input
+                    type="text"
+                    placeholder="Metadata (comma-separated)"
+                    value={certificate.metadata}
+                    onChange={(e) =>
+                      setCertificate({
+                        ...certificate,
+                        metadata: e.target.value,
+                      })
+                    }
+                  />
+                  <input
+                    type="number"
+                    placeholder="v"
+                    value={signature.v}
+                    onChange={(e) =>
+                      setSignature({
+                        ...signature,
+                        v: e.target.value,
+                      })
+                    }
+                  />
+                  <input
+                    type="number"
+                    placeholder="r"
+                    value={signature.r}
+                    onChange={(e) =>
+                      setSignature({
+                        ...signature,
+                        r: e.target.value,
+                      })
+                    }
+                  />
+                  <input
+                    type="number"
+                    placeholder="s"
+                    value={signature.s}
+                    onChange={(e) =>
+                      setSignature({
+                        ...signature,
+                        s: e.target.value,
+                      })
+                    }
+                  />
+                  <button type="submit">Submit</button>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+      <ToastContainer />
+    </div>
+  );
 }
 
 export default App;
