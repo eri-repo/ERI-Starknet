@@ -137,6 +137,7 @@ function App() {
 
     try {
       const contract = viewContract();
+
       const result = await contract.get_manufacturer(queryAddress1);
       console.log(result);
       const decodedName = convertFelt252ToString(result.manufacturer_name);
@@ -177,19 +178,33 @@ function App() {
     }
   };
 
-  const verifySignature = async () => {
+  
+  const signAndVerifySignatureOffChain = async () => {
+    //at the end of the function call, a QR code of the certificate and signature is generated
+    //this is what the user will scan to verify the authenticity of the product and claim ownership
+
     if (!checkConnection()) return;
     if (!account) return toast.error("Account not initialized");
 
     try {
       const contract = viewContract();
 
+      //the connected wallet address is checked against the manufacturer address
+      // to know if the wallet is authorized (registered) to sign certificates
+      const { is_registered, manufacturer_address } =
+        await contract.get_manufacturer(account.address);
+      const manufacturerAddress = hex_it(BigInt(manufacturer_address));
+
+      if (manufacturerAddress !== account.address || !is_registered) {
+        throw new Error("Unauthorized/Unregistered Wallet");
+      }
+
       // to create typed data for signing
       const typedData = getTypedData(certificate, account.address);
 
       console.log("Typed Data:", JSON.stringify(typedData, null, 2));
 
-      // sign the typed data
+      //connected wallet signs the typed data
       const signature = await account.signMessage(typedData);
       console.log("Signature:", signature);
 
@@ -197,15 +212,7 @@ function App() {
         return new Error("Invalid signature format returned by wallet");
       }
 
-      const { is_registered, manufacturer_address } =
-        await contract.get_manufacturer(account.address);
-      const manufacturerAddress = hex_it(BigInt(manufacturer_address));
-
-      if (manufacturerAddress !== account.address || !is_registered) {
-        throw new Error("Unauthorized Wallet");
-      }
-
-      const msgHash = await account.hashMessage(typedData);
+      const msgHash = await account.hashMessage(typedData); //connected wallet message hash the typed data
 
       console.log("Message Hash:", msgHash);
 
@@ -219,6 +226,7 @@ function App() {
 
       setSignatureResult(`Signature valid: ${isValid4}`);
       toast.success(`Signature verification: ${isValid4}`);
+
     } catch (error) {
       console.error("Signature error:", error);
       toast.error(`Error: ${error.message}`);
@@ -234,10 +242,9 @@ function App() {
 
       const typedData = getTypedData(certificate, certificate.owner);
 
-      console.log("Typed Data:", typedData);
-
       const sign = [signature.v, signature.r, signature.s];
 
+      //the signature is verified against the typed data and the owner address
       const isValid = await provider.verifyMessageInStarknet(
         typedData,
         sign,
@@ -250,7 +257,7 @@ function App() {
         throw new Error("Invalid Product");
       }
 
-      const cert = {
+      const cert = { // certificate object to be sent to the contract
         name: shortString.encodeShortString(certificate.name),
         unique_id: shortString.encodeShortString(certificate.unique_id),
         serial: shortString.encodeShortString(certificate.serial),
@@ -374,7 +381,7 @@ function App() {
                   className="function-form"
                   onSubmit={(e) => {
                     e.preventDefault();
-                    verifySignature();
+                    signAndVerifySignatureOffChain();
                   }}
                 >
                   <input

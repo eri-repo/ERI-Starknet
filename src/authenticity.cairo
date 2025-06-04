@@ -31,10 +31,10 @@ pub mod Authenticity {
     //storage
     #[storage]
     struct Storage {
-        owner: ContractAddress,
-        manufacturers: Map<ContractAddress, Manufacturer>,
-        names: Map<felt252, ContractAddress>,
-        ownership: ContractAddress,
+        owner: ContractAddress, // owner of the contract
+        manufacturers: Map<ContractAddress, Manufacturer>, //manufacturer_address -> Manufacturer
+        names: Map<felt252, ContractAddress>, //manufacturer_name -> manufacturer_address
+        ownership: ContractAddress, //ownership smart contract
     }
 
     #[constructor]
