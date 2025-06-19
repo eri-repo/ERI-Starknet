@@ -4,3 +4,6 @@ mod interfaces;
 mod utilities;
 mod events;
 mod errors;
+mod models;
+mod domain;
+mod certificate;

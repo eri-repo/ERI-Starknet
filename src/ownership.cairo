@@ -2,16 +2,17 @@
 mod Ownership {
     use core::hash::{HashStateExTrait, HashStateTrait};
     use core::num::traits::Zero;
-    use core::pedersen::PedersenTrait;
+    use core::poseidon::PoseidonTrait;
     use starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
     };
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address, get_contract_address};
+    use crate::certificate::Cert::Certificate;
     use crate::errors::EriErrors::*;
     use crate::events::EriEvents::*;
     use crate::interfaces::IOwnership;
-    use crate::utilities::Models::{Certificate, Item, Owner, UserProfile};
-    use crate::utilities::{address_zero_check, hash_array};
+    use crate::models::Models::{Item, Owner, UserProfile};
+    use crate::utilities::UtilityFunctions::{address_zero_check, hash_array};
 
     #[storage]
     struct Storage {
@@ -24,7 +25,8 @@ mod Ownership {
         temp: Map<felt252, ContractAddress>, // item_hash -> temp_owner
         temp_owners: Map<
             felt252, Map<ContractAddress, felt252>,
-        > // (item_hash, temp_owner) -> item_id
+        >, // (item_hash, temp_owner) -> item_id
+        authenticity_contract: ContractAddress // authenticity smart contract
     }
 
 
@@ -37,20 +39,25 @@ mod Ownership {
         OwnershipCode: OwnershipCode,
         OwnershipClaimed: OwnershipClaimed,
         CodeRevoked: CodeRevoked,
+        AuthenticitySet: AuthenticitySet,
     }
 
     #[constructor]
-    fn constructor(ref self: ContractState, _owner: ContractAddress) {
-        address_zero_check(_owner);
+    fn constructor(ref self: ContractState, owner: ContractAddress) {
+        address_zero_check(owner);
 
-        self.owner.write(_owner);
+        self.owner.write(owner);
 
-        self.emit(ContractCreated { contract_address: get_contract_address(), owner: _owner });
+        self.emit(ContractCreated { contract_address: get_contract_address(), owner });
     }
 
-    #[abi(embed_v0)] ///on a view function, the get_caller_address() is address zero because the the transaction is free so no need you being the caller
+    #[abi(
+        embed_v0,
+    )] ///on a view function, the get_caller_address() is address zero because the the transaction is free so no need you being the caller
     impl Ownership of IOwnership<ContractState> {
         fn user_registers(ref self: ContractState, username: felt252) {
+            self.is_authenticity_set();
+
             let caller = get_caller_address();
 
             address_zero_check(caller);
@@ -70,8 +77,20 @@ mod Ownership {
             self.emit(UserRegistered { user_address: caller, username });
         }
 
+        fn set_authenticity_contract(
+            ref self: ContractState, authenticity_address: ContractAddress,
+        ) {
+            assert(get_caller_address() == self.owner.read(), ONLY_OWNER);
+            address_zero_check(authenticity_address);
+
+            self.authenticity_contract.write(authenticity_address);
+
+            self.emit(AuthenticitySet { authenticity_address });
+        }
+
 
         fn get_user(self: @ContractState, user_address: ContractAddress) -> UserProfile {
+            self.is_authenticity_set();
             let username = self.usernames.entry(user_address).read();
 
             assert!(!username.is_zero(), "{:?} DOES_NOT_EXIST", user_address);
@@ -81,13 +100,20 @@ mod Ownership {
 
         fn create_item(
             ref self: ContractState,
-            _owner: ContractAddress,  certificate: Certificate,
+            _owner: ContractAddress,
+            certificate: Certificate,
             manufacturer_name: felt252,
         ) {
-            assert(_owner != 0x0.try_into().unwrap(), ZERO_ADDRESS);
-            is_registered(@self, _owner);
+            self.is_authenticity_set();
 
-            let item_id = certificate.unique_id;
+            assert( //this prevents just anyone to call this function but only the authenticity contract
+                get_caller_address() == self.authenticity_contract.read(), ONLY_AUTHENTICITY,
+            );
+
+            assert(_owner != 0x0.try_into().unwrap(), ZERO_ADDRESS);
+            self.is_registered(_owner);
+
+            let item_id = certificate.id;
             assert(!item_id.is_zero(), INVALID_ID);
 
             assert(self.items.entry(item_id).read().owner.is_zero(), ALREADY_OWNED);
@@ -96,7 +122,7 @@ mod Ownership {
                 item_id,
                 owner: _owner,
                 name: certificate.name,
-                date: certificate.date,
+                date: certificate.date.try_into().unwrap(),
                 manufacturer: manufacturer_name,
                 serial: certificate.serial,
                 metadata_hash: hash_array(certificate.metadata),
@@ -118,6 +144,7 @@ mod Ownership {
         }
 
         fn get_item(self: @ContractState, item_id: felt252) -> Item {
+            self.is_authenticity_set();
             let item = self.items.entry(item_id).read();
 
             assert!(!item.owner.is_zero(), "{:?} DOES_NOT_EXIST", item_id);
@@ -125,7 +152,13 @@ mod Ownership {
             item
         }
 
-        fn get_all_items_for(self: @ContractState, user: ContractAddress) -> Array<Item> {
+        //I HAVE ISSUE WITH THIS AS IT SHOWS ALL THE ITEMS OWNED BY A USER AND IT'S A PUBLIC
+        //FUNCTION I WILL EITHER RESTRICT IT TO THE OWNER OR USE ZK HERE (I STILL DON'T KNOW YET)
+        fn get_all_my_items(ref self: ContractState //user: ContractAddress,
+        ) -> Array<Item> {
+            self.is_authenticity_set();
+
+            let user = get_caller_address();
             let mut items = ArrayTrait::new();
             let mut no_of_items = self.number_of_items.entry(user).read();
 
@@ -149,6 +182,7 @@ mod Ownership {
         fn generate_change_of_ownership_code(
             ref self: ContractState, item_id: felt252, temp_owner: ContractAddress,
         ) {
+            self.is_authenticity_set();
             let caller = get_caller_address();
 
             address_zero_check(temp_owner);
@@ -161,7 +195,7 @@ mod Ownership {
 
             assert!(!item.owner.is_zero(), "{:?} DOES_NOT_EXIST", item_id);
 
-            let mut state = PedersenTrait::new(0);
+            let mut state = PoseidonTrait::new();
             state = state.update_with(item.item_id);
             state = state.update_with(temp_owner);
             let item_hash = state.finalize();
@@ -175,14 +209,16 @@ mod Ownership {
         }
 
         fn get_temp_owner(self: @ContractState, item_hash: felt252) -> ContractAddress {
+            self.is_authenticity_set();
             self.temp.entry(item_hash).read()
         }
 
         fn new_owner_claim_ownership(ref self: ContractState, item_hash: felt252) {
+            self.is_authenticity_set();
             let claimer = get_caller_address();
 
             address_zero_check(claimer);
-            is_registered(@self, claimer);
+            self.is_registered(claimer);
 
             assert(
                 self.temp.entry(item_hash).read() == claimer, INCONSISTENT_CLAIMER,
@@ -225,6 +261,7 @@ mod Ownership {
 
 
         fn owner_revoke_code(ref self: ContractState, item_hash: felt252) {
+            self.is_authenticity_set();
             let caller = get_caller_address();
 
             let temp_owner = self.temp.entry(item_hash).read();
@@ -244,6 +281,7 @@ mod Ownership {
 
 
         fn verify_ownership(self: @ContractState, item_id: felt252) -> Owner {
+            self.is_authenticity_set();
             let item = self.get_item(item_id); //address zero check is done in this function call
 
             Owner {
@@ -255,20 +293,28 @@ mod Ownership {
         }
 
         fn is_owner(self: @ContractState, user: ContractAddress, item_id: felt252) -> bool {
+            self.is_authenticity_set();
             let item = self.get_item(item_id);
 
             item.owner == user
         }
     }
 
+    #[generate_trait] //privates
+    impl Utility of IUtility {
+        fn is_registered(self: @ContractState, address: ContractAddress) {
+            let username = self.usernames.entry(address).read();
 
-    fn is_registered(self: @ContractState, address: ContractAddress) {
-        let username = self.usernames.entry(address).read();
-        assert!(
-            !username.is_zero() && self.users.entry(username).read().is_registered,
-            "{:?} not registered",
-            address,
-        );
+            assert!(
+                !username.is_zero() && self.users.entry(username).read().is_registered,
+                "{:?} not registered",
+                address,
+            );
+        }
+
+        fn is_authenticity_set(self: @ContractState) {
+            assert(!self.authenticity_contract.read().is_zero(), AUTHENTICITY_NOT_SET);
+        }
     }
 }
 

@@ -42,4 +42,8 @@ pub mod EriEvents {
     pub struct CodeRevoked {
         pub item_hash: felt252,
     }
+    #[derive(Drop, starknet::Event)]
+    pub struct AuthenticitySet {
+        pub authenticity_address: ContractAddress,
+    }
 }

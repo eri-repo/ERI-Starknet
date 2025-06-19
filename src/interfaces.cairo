@@ -1,18 +1,21 @@
 use starknet::ContractAddress;
-use crate::utilities::Models::*;
+use crate::certificate::Cert::Certificate;
+use crate::models::Models::*;
 
 #[starknet::interface]
 pub trait IAuthenticity<TContractState> {
     fn manufacturer_registers(ref self: TContractState, manufacturer_name: felt252);
-    fn get_manufacturer_address_by_name(self: @TContractState, manufacturer_name: felt252) -> ContractAddress;
+    fn get_manufacturer_address_by_name(
+        self: @TContractState, manufacturer_name: felt252,
+    ) -> ContractAddress;
     fn get_manufacturer(self: @TContractState, user_address: ContractAddress) -> Manufacturer;
     fn get_manufacturer_address(
         self: @TContractState, expected_manufacturer: ContractAddress,
     ) -> ContractAddress;
-  
-    fn user_claim_ownership(
-        ref self: TContractState, certificate: Certificate,
-    );
+    fn verify_signature(
+        self: @TContractState, certificate: Certificate, signature: felt252,
+    ) -> bool;
+    fn user_claim_ownership(ref self: TContractState, certificate: Certificate, signature: felt252);
 }
 
 
@@ -26,7 +29,7 @@ pub trait IOwnership<TContractState> {
         certificate: Certificate,
         manufacturer_name: felt252,
     );
-    fn get_all_items_for(self: @TContractState, user: ContractAddress) -> Array<Item>;
+    fn get_all_my_items(ref self: TContractState) -> Array<Item>;
     fn generate_change_of_ownership_code(
         ref self: TContractState, item_id: felt252, temp_owner: ContractAddress,
     );
@@ -36,4 +39,5 @@ pub trait IOwnership<TContractState> {
     fn get_item(self: @TContractState, item_id: felt252) -> Item;
     fn verify_ownership(self: @TContractState, item_id: felt252) -> Owner;
     fn is_owner(self: @TContractState, user: ContractAddress, item_id: felt252) -> bool;
+    fn set_authenticity_contract(ref self: TContractState, authenticity_address: ContractAddress);
 }
