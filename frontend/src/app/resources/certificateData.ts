@@ -14,7 +14,7 @@ const types = {
     { name: "chainId", type: "shortstring" },
     { name: "revision", type: "shortstring" },
   ],
-  // In V1 we privilege user friendly names
+
   Certificate: [
     { name: "name", type: "felt" },
     { name: "id", type: "felt" },
@@ -34,13 +34,9 @@ export interface Certificate {
   metadata: string[];
 }
 
-//   id: string;
-//   serial: string;
-//   date: string;
-
 function getDomain(): StarknetDomain {
   return {
-    name: "CustomERC20",
+    name: "Authenticity",
     version: shortString.encodeShortString("1"),
     chainId: constants.StarknetChainId.SN_SEPOLIA,
     revision: TypedDataRevision.ACTIVE,
@@ -52,8 +48,6 @@ export function getTypedDataHash(myStruct: Certificate, owner: bigint): string {
   return typedData.getMessageHash(getTypedData(myStruct), owner);
 }
 
-// Needed to reproduce the same structure as:
-// https://github.com/0xs34n/starknet.js/blob/1a63522ef71eed2ff70f82a886e503adc32d4df9/__mocks__/typedDataStructArrayExample.json
 export function getTypedData(myStruct: Certificate): TypedData {
   return {
     types,
@@ -70,6 +64,3 @@ export function getTypedData(myStruct: Certificate): TypedData {
   };
 }
 
-//   id: myStruct.id,
-//   serial: myStruct.serial,
-//   date: myStruct.date,

@@ -28,7 +28,7 @@ pub mod Cert {
     impl OffChainMessageHashStructWithArray of IOffChainMessageHash<Certificate> {
         fn get_message_hash(self: @Certificate, owner: ContractAddress) -> felt252 {
             let domain = StarknetDomain {
-                name: 'CustomERC20',
+                name: 'Authenticity',
                 version: '1',
                 chain_id: get_tx_info().unbox().chain_id,
                 revision: 1,
