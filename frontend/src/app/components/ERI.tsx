@@ -7,7 +7,6 @@ import {
     ContractAddress,
     ProviderInterface,
     RpcProvider,
-    shortString,
     typedData
 } from "starknet";
 import {connect, disconnect} from "starknetkit";
@@ -16,6 +15,7 @@ import "react-toastify/dist/ReactToastify.css";
 import {Certificate} from "../resources/interfaces";
 import {ContractType, felt252ToString, hex_it, stringToFelt252} from "../resources/utilities";
 import {getTypedData} from "@/app/resources/certificateData";
+import {QRCodeCanvas} from "qrcode.react";
 
 
 // Placeholder types for imported utilities (adjust based on actual implementations)
@@ -46,6 +46,7 @@ const App: React.FC = () => {
     const [manufacturerAddress1, setManufacturerAddress1] = useState<string>("");
     const [manufacturerAddress2, setManufacturerAddress2] = useState<string>("");
     const [signatureResult, setSignatureResult] = useState<string>("");
+    const [qrCodeData, setQrCodeData] = useState<string>("");
     const [signature, setSignature] = useState<string>("");
 
     // Ownership state
@@ -225,7 +226,7 @@ const App: React.FC = () => {
                 id: certificate.unique_id,
                 serial: certificate.serial,
                 date: certificate.date,
-                owner: address!,
+                owner: address!, //this is important because this is the signer of the message
                 metadata: certificate.metadata
                     .split(",")
                     .map((item: string) => item.trim())
@@ -238,28 +239,43 @@ const App: React.FC = () => {
             // const msgHash = getTypedDataHash(cert, address);
 
             const certTypedData = getTypedData(cert);
-
             //sign message off-chain
             const msgHash = typedData.getMessageHash(certTypedData, address!);
             console.log("Message Hash:", msgHash);
 
+
             //TODO: THIS IS UNNECESSARY AND WILL REMOVE IT LATER
-            // const signature = await account.signMessage(certTypedData);
-            // console.log("Signature:", signature);
-            //
-            // const hashedMsg: string = await account.hashMessage(certTypedData);
-            //
-            // const isValid: boolean = await provider!.verifyMessageInStarknet(
-            //     hashedMsg,
-            //     signature,
-            //     address
-            // );
-            // console.log("Off-chain verification: ", isValid);
+            //sign the typedData off-chain
+            const signature = await account!.signMessage(certTypedData);
+            console.log("Signature:", signature);
+
+            //verify the signature off-chain
+            const isValid: boolean = await provider.verifyMessageInStarknet(
+                msgHash, //certTypedData,
+                signature,
+                address
+            );
+
+            console.log("Off-chain verification: ", isValid);
             //TODO============================================================
+
 
             //verify signature on-chain
             const result: boolean = await contract.verify_signature(cert, msgHash);
+
+            if (!result) {
+                throw new Error("Signature verification failed!")
+            }
+
             setSignatureResult(`Verification result is: ${result}`);
+
+            // Generate QR code data
+            const qrData = JSON.stringify({
+                cert,
+                msgHash,
+            });
+            console.log("QR Code Struct:", qrData);
+            setQrCodeData(qrData);
 
             console.log("On-chain verification:", result);
             toast.success(`Signature verification is: ${result ? "True" : "False"}`);
@@ -787,6 +803,44 @@ const App: React.FC = () => {
                                             {signatureResult && (
                                                 <p className="mt-2 text-gray-700">{signatureResult}</p>
                                             )}
+
+                                            {qrCodeData && (
+                                                <div className="mt-4 flex flex-col items-center">
+                                                    <h3 className="text-lg font-semibold text-blue-800">Certificate QR
+                                                        Code</h3>
+                                                    <QRCodeCanvas
+                                                        value={qrCodeData}
+                                                        size={350}
+                                                        fgColor="#1e3a8a" // Dark blue (matches blue-900)
+                                                        bgColor="#e0f2fe" // Light blue (matches sky-100)
+                                                        level="M"
+                                                        className="rounded-lg border border-gray-200 p-2"
+                                                        imageSettings={{
+                                                            src: "/logo.png", // Logo in public/
+                                                            x: undefined, // Center horizontally
+                                                            y: undefined, // Center vertically
+                                                            height: 50,
+                                                            width: 50,
+                                                            excavate: true, // Remove QR code behind logo
+                                                        }}
+                                                    />
+                                                    <p className="mt-2 text-sm text-gray-600">Scan to verify your
+                                                        product authenticity</p>
+                                                </div>
+                                            )}
+                                            <button
+                                                onClick={() => {
+                                                    const canvas = document.querySelector("canvas");
+                                                    const link = document.createElement("a");
+                                                    link.href = canvas.toDataURL("image/png");
+                                                    link.download = `certificate-qr-${certificate.unique_id || "unknown"}.png`;
+                                                    link.click();
+                                                }}
+                                                className="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-lg transition duration-300"
+                                            >
+                                                Download QR Code
+                                            </button>
+
                                         </form>
                                     ),
                                 },

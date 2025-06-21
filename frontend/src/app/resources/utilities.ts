@@ -1,6 +1,6 @@
 import BigNumber from "bignumber.js";
 import {toast} from "react-toastify";
-import {ContractAddress, shortString} from "starknet";
+import {shortString} from "starknet";
 
 const felt252ToString = (felt252: string): string => {
     try {
