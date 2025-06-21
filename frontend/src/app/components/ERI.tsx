@@ -141,14 +141,12 @@ const App: React.FC = () => {
         try {
             const contract: Contract = await getContract(AUTHENTICITY_ADDRESS, ContractType.STATE_CHANGE);
 
-            const feltName: string = stringToFelt252(queryName);
-
-            const res = await contract.manufacturer_registers(feltName);
+            const res = await contract.manufacturer_registers(
+                stringToFelt252(queryName)
+            );
             const txHash: string = res?.transaction_hash;
             const txResult = await provider!.waitForTransaction(txHash);
             const events = contract.parseEvents(txResult);
-
-            console.log("Events: ", events);
 
             const manuAddress =
                 events[0]["eri::events::EriEvents::ManufacturerRegistered"].manufacturer_address;
@@ -171,6 +169,7 @@ const App: React.FC = () => {
 
         try {
             const contract = await getContract(AUTHENTICITY_ADDRESS, ContractType.VIEW);
+
             const result = await contract.get_manufacturer(queryAddress);
 
             setManufacturerDetails(result);
@@ -202,6 +201,7 @@ const App: React.FC = () => {
 
         try {
             const contract = await getContract(AUTHENTICITY_ADDRESS, ContractType.VIEW);
+
             const result: string = await contract.get_manufacturer_address(queryAddress);
 
             setManufacturerAddress2(hex_it(result));
@@ -310,9 +310,9 @@ const App: React.FC = () => {
         try {
             const contract = await getContract(OWNERSHIP_ADDRESS, ContractType.STATE_CHANGE);
 
-            const feltUsername = stringToFelt252(queryName.toLowerCase().trim());
-
-            const res = await contract.user_registers(feltUsername);
+            const res = await contract.user_registers(
+                stringToFelt252(queryName.toLowerCase().trim())
+            );
 
             const txHash: string = res?.transaction_hash;
             const txResult = await provider!.waitForTransaction(txHash);
@@ -377,7 +377,10 @@ const App: React.FC = () => {
 
         try {
             const contract = await getContract(OWNERSHIP_ADDRESS, ContractType.VIEW);
-            const result = await contract.get_item(stringToFelt252(queryItemId));
+
+            const result = await contract.get_item(
+                stringToFelt252(queryItemId)
+            );
 
             setItemDetails(result);
             setQueryItemId("")
@@ -389,7 +392,7 @@ const App: React.FC = () => {
 
     const getAllMyItems = async (): Promise<void> => {
 
-        try { //todo: I am calling with account instead of ordinary provider without the address, i will check for error
+        try { //todo: I really need to find a way to make sure only the owner of the items can call this function and get the items
             const contract = await getContract(OWNERSHIP_ADDRESS, ContractType.STATE_CHANGE);
 
             const result: any[] = await contract.get_all_my_items(queryAddress);
@@ -418,7 +421,10 @@ const App: React.FC = () => {
         try {
             const contract = await getContract(OWNERSHIP_ADDRESS, ContractType.STATE_CHANGE);
 
-            const res = await contract.generate_change_of_ownership_code(stringToFelt252(queryItemId), queryAddress);
+            const res = await contract.generate_change_of_ownership_code(
+                stringToFelt252(queryItemId),
+                queryAddress
+            );
 
             const txHash: string = res?.transaction_hash;
             const txResult = await provider!.waitForTransaction(txHash);
@@ -455,11 +461,6 @@ const App: React.FC = () => {
 
             const result: string = await contract.get_temp_owner(itHash);
             console.log("temp owner", result);
-
-            if (hex_it(result) === "0x0") {
-                toast.success("No user found");
-                return;
-            }
 
             setTempOwnerAddress(hex_it(result));
 
@@ -513,8 +514,6 @@ const App: React.FC = () => {
             const txHash: string = res?.transaction_hash;
             const txResult = await provider!.waitForTransaction(txHash);
             const events = contract.parseEvents(txResult);
-
-            console.log("Events: ", events);
 
             const item_hash =
                 events[0]["eri::events::EriEvents::CodeRevoked"].item_hash;
@@ -1152,8 +1151,16 @@ const App: React.FC = () => {
                                             >
                                                 Submit
                                             </button>
-                                            {tempOwnerAddress && (
-                                                <p className="mt-2 text-gray-700">{tempOwnerAddress}</p>
+                                            {tempOwnerAddress ? (
+                                                hex_it(tempOwnerAddress) === "0x0" ? (
+                                                    <p className="mt-2 text-gray-700 text-center">NO USER FOUND</p>
+                                                ) : (
+                                                    <p className="mt-2 text-gray-700 truncate" title={tempOwnerAddress}>
+                                                        {tempOwnerAddress}
+                                                    </p>
+                                                )
+                                            ) : (
+                                                <p className="mt-2 text-gray-700 text-center">NO USER FOUND</p>
                                             )}
                                         </form>
                                     ),
@@ -1353,8 +1360,7 @@ const App: React.FC = () => {
                 hideProgressBar={false}
             />
         </div>
-    )
-        ;
+    );
 };
 
 export default App;
