@@ -1,6 +1,6 @@
 "use client";
 
-import React, {ReactNode, useEffect, useState} from "react";
+import React, {ReactNode, useEffect, useRef, useState} from "react";
 import {
     AccountInterface,
     Contract,
@@ -12,17 +12,18 @@ import {
 import {connect, disconnect} from "starknetkit";
 import {toast, ToastContainer} from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import {Certificate} from "../resources/interfaces";
+import {Certificate, CertificateResult} from "../resources/interfaces";
 import {ContractType, felt252ToString, hex_it, stringToFelt252} from "../resources/utilities";
 import {getTypedData} from "@/app/resources/certificateData";
 import {QRCodeCanvas} from "qrcode.react";
+import Papa from "papaparse";
 
 
 // Placeholder types for imported utilities (adjust based on actual implementations)
-type GetTypedData = (cert: Partial<Certificate>, owner: string) => any;
-type ConvertFelt252ToString = (felt: string | bigint) => string;
-type HexIt = (value: string) => string;
-type CheckConnection = (address: string | null) => boolean;
+// type GetTypedData = (cert: Partial<Certificate>, owner: string) => any;
+// type ConvertFelt252ToString = (felt: string | bigint) => string;
+// type HexIt = (value: string) => string;
+// type CheckConnection = (address: string | null) => boolean;
 
 const App: React.FC = () => {
     // Shared state
@@ -58,6 +59,12 @@ const App: React.FC = () => {
     const [tempOwnerAddress, setTempOwnerAddress] = useState<string>("");
     const [ownershipDetails, setOwnershipDetails] = useState<string>("");
     const [isOwnerResult, setIsOwnerResult] = useState<string>("");
+
+
+    const [certificates, setCertificates] = useState<Certificate[]>([]);
+    const [certificateResults, setCertificateResults] = useState<CertificateResult[]>([]);
+
+    const qrCodeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
 
     const OWNERSHIP_ADDRESS: ContractAddress = process.env.NEXT_PUBLIC_OWNERSHIP_ADDRESS!;
@@ -579,6 +586,165 @@ const App: React.FC = () => {
             toast.error(`Error: ${message}`);
         }
     };
+    //=========================== NEW FUNCTIONS ==================================================
+
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) {
+            toast.error("No file selected");
+            return;
+        }
+
+        if (!file.name.endsWith(".csv")) {
+            toast.error("Please upload a CSV file");
+            return;
+        }
+
+        if (!address) {
+            toast.error("Connect wallet before uploading CSV");
+            return;
+        }
+
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (result) => {
+                console.log("Raw CSV Data:", result.data);
+
+                const parsedCertificates: Certificate[] = result.data
+                    .map((row: unknown, index: number) => {
+
+                        if (typeof row !== "object" || row === null) {
+                            console.warn(`Skipping invalid row ${index + 1}: Not an object`, row);
+                            toast.warn(`Skipped row ${index + 1}: Invalid row format`);
+                            return null;
+                        }
+
+                        const {name, unique_id, serial, metadata} = row as {
+                            name?: unknown;
+                            unique_id?: unknown;
+                            serial?: unknown;
+                            metadata?: unknown;
+                        };
+
+                        if (
+                            typeof name !== "string" || !name.trim() ||
+                            typeof unique_id !== "string" || !unique_id.trim() ||
+                            typeof serial !== "string" || !serial.trim() ||
+                            typeof metadata !== "string" || !metadata.trim()
+                        ) {
+                            console.warn(`Skipping invalid row ${index + 1}:`, {
+                                name,
+                                unique_id,
+                                serial,
+                                metadata,
+                            });
+                            toast.warn(
+                                `Skipped row ${index + 1}: Missing or invalid name, unique_id, serial, or metadata`
+                            );
+                            return null;
+                        }
+
+                        const cert: Certificate = {
+                            name: name.trim(),
+                            id: unique_id.trim(),
+                            serial: serial.trim(),
+                            date: Math.floor(Date.now() / 1000).toString(),
+                            owner: address,
+                            metadata: metadata
+                                .split(",")
+                                .map((item: string) => item.trim())
+                                .filter(Boolean),
+                        };
+
+                        console.log(`Valid certificate at row ${index + 1}:`, cert);
+                        return cert;
+                    })
+                    .filter((cert): cert is Certificate => cert !== null);
+
+                console.log("Parsed Certificates:", parsedCertificates);
+
+                setCertificates(parsedCertificates);
+                const skippedCount = result.data.length - parsedCertificates.length;
+                toast.success(
+                    `Loaded ${parsedCertificates.length} valid certificates${
+                        skippedCount > 0 ? ` (${skippedCount} rows skipped)` : ""
+                    }`
+                );
+            },
+            error: (error) => {
+                console.error("CSV Parsing Error:", error);
+                toast.error(`CSV parsing error: ${error.message}`);
+            },
+        });
+    };
+
+    const signAndVerifyMultipleSignaturesOffChain = async (): Promise<void> => {
+
+        if (certificates.length === 0) {
+            toast.error("No certificates to process");
+            return;
+        }
+
+        const contract = await getContract(AUTHENTICITY_ADDRESS, ContractType.VIEW);
+
+        const results: CertificateResult[] = [];
+
+        for (const certInput of certificates) {
+            try {
+
+                console.log("Certificate Struct:", certInput);
+
+                const certTypedData = getTypedData(certInput);
+                const msgHash = typedData.getMessageHash(certTypedData, address!);
+                console.log("Message Hash:", msgHash);
+
+                const result: boolean = await contract.verify_signature(certInput, msgHash);
+
+                if (!result) {
+                    throw new Error("Signature verification failed!");
+                }
+
+                console.log(`Verification for ${certInput.id} is ${result}`);
+
+                const qrData = JSON.stringify({
+                    certificate: {
+                        name: certInput.name,
+                        id: certInput.id,
+                        serial: certInput.serial,
+                        date: certInput.date,
+                        owner: certInput.owner,
+                        metadata: certInput.metadata,
+                    },
+                    msgHash,
+                });
+                console.log("QR Code Struct:", qrData);
+
+                results.push({
+                    certificate: certInput,
+                    msgHash,
+                    qrData,
+                    verificationResult: result,
+                });
+
+            } catch (error: unknown) {
+
+                results.push({
+                    certificate: certInput,
+                    msgHash: "",
+                    qrData: "",
+                    verificationResult: false,
+                    error: error.message,
+                });
+
+                console.error(`Error processing certificate ${certInput.id}:`, error.message);
+            }
+        }
+
+        setCertificateResults(results);
+        toast.success(`Processed ${results.length} certificates`);
+    };
+    // ===============================================================================================
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-100 to-teal-100">
@@ -844,6 +1010,126 @@ const App: React.FC = () => {
                                         </form>
                                     ),
                                 },
+
+
+                                {
+                                    id: "verifyMultipleSignatures",
+                                    label: "Verify Multiple Signatures",
+                                    form: (
+                                        <form
+                                            onSubmit={(e: React.FormEvent) => {
+                                                e.preventDefault();
+                                                signAndVerifyMultipleSignaturesOffChain();
+                                            }}
+                                            className="space-y-4"
+                                        >
+                                            <div>
+                                                <label
+                                                    htmlFor="csv-upload"
+                                                    className="block text-sm font-medium text-gray-700"
+                                                >
+                                                    Upload Certificates (CSV)
+                                                </label>
+                                                <input
+                                                    id="csv-upload"
+                                                    type="file"
+                                                    accept=".csv"
+                                                    onChange={handleFileUpload}
+                                                    className="mt-1 w-full p-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                />
+                                            </div>
+                                            <button
+                                                type="submit"
+                                                className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-300"
+                                            >
+                                                Process Certificates
+                                            </button>
+                                            {certificateResults.length > 0 && (
+                                                <div className="mt-4 max-h-96 overflow-y-auto">
+                                                    <h3 className="text-lg font-semibold text-blue-800">
+                                                        Certificate Results
+                                                    </h3>
+                                                    <ul className="space-y-4">
+                                                        {certificateResults.map((result, index) => (
+                                                            <li
+                                                                key={result.certificate.id || index}
+                                                                className="bg-gray-50 p-4 rounded-lg"
+                                                            >
+                                                                <div className="grid grid-cols-1 gap-2">
+                                                                    <p className="font-semibold">
+                                                                        Certificate {index + 1}:{" "}
+                                                                        {result.certificate.name}
+                                                                    </p>
+                                                                    <p>Unique ID: {result.certificate.id}</p>
+                                                                    <p>Serial: {result.certificate.serial}</p>
+                                                                    <p>Metadata: {result.certificate.metadata}</p>
+                                                                    <p>
+                                                                        Verification:{" "}
+                                                                        <span
+                                                                            className={
+                                                                                result.verificationResult
+                                                                                    ? "text-green-600"
+                                                                                    : "text-red-600"
+                                                                            }>
+                                                                            {result.verificationResult
+                                                                                ? "Success"
+                                                                                : result.error || "Failed"}
+                                                                        </span>
+                                                                    </p>
+                                                                    {result.qrData && (
+                                                                        <div className="flex flex-col items-center">
+                                                                            <div
+                                                                                ref={(el) =>
+                                                                                    el &&
+                                                                                    qrCodeRefs.current.set(
+                                                                                        result.certificate.id,
+                                                                                        el
+                                                                                    )
+                                                                                }
+                                                                                className="relative inline-block"
+                                                                            >
+                                                                                <QRCodeCanvas
+                                                                                    value={result.qrData}
+                                                                                    size={300}
+                                                                                    fgColor="#1e3a8a"
+                                                                                    bgColor="#e0f2fe"
+                                                                                    level="M"
+                                                                                    className="rounded-lg border border-gray-200 p-2"
+                                                                                    imageSettings={{
+                                                                                        src: "/logo.png",
+                                                                                        x: undefined,
+                                                                                        y: undefined,
+                                                                                        height: 50,
+                                                                                        width: 50,
+                                                                                        excavate: true,
+                                                                                    }}
+                                                                                />
+                                                                            </div>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    const canvas = document.querySelector("canvas");
+                                                                                    const link = document.createElement("a");
+                                                                                    link.href = canvas.toDataURL("image/png");
+                                                                                    link.download = `certificate-qr-${certificate.unique_id || "unknown"}.png`;
+                                                                                    link.click();
+                                                                                }}
+                                                                                className="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-lg transition duration-300"
+                                                                            >
+                                                                                Download QR Code
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                        </form>
+                                    ),
+                                },
+
+
                                 {
                                     id: "claimOwnership",
                                     label: "Claim Ownership",
