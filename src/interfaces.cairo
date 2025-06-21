@@ -29,7 +29,7 @@ pub trait IOwnership<TContractState> {
         certificate: Certificate,
         manufacturer_name: felt252,
     );
-    fn get_all_my_items(ref self: TContractState) -> Array<Item>;
+    fn get_all_my_items(self: @TContractState, user: ContractAddress) -> Array<Item>;
     fn generate_change_of_ownership_code(
         ref self: TContractState, item_id: felt252, temp_owner: ContractAddress,
     );

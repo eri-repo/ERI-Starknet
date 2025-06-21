@@ -15,7 +15,13 @@
     "dotenv": "^16.4.5",
     "react-toastify": "^10.0.5",
     "starknet": "^6.24.1",
-    "starknetkit": "^1.1.9"
+    "starknetkit": "^1.1.9",
+    "file-saver": "^2.0.5",
+    "jszip": "^3.10.1",
+    "papaparse": "^5.5.3",
+    "qrcode.react": "^4.2.0",
+    "bignumber.js": "^9.1.2",
+    "i": "^0.3.7"
   },
   "devDependencies": {
     "typescript": "^5",

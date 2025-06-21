@@ -118,9 +118,8 @@ use core::array::ArrayTrait;
         fn verify_signature(
             self: @ContractState, certificate: Certificate, signature: felt252,
         ) -> bool {
+            
             let is_valid = certificate.verify_message(signature);
-
-            // let is_valid = certificate_hash == signature;
 
             assert(is_valid, INVALID_SIGNATURE);
 

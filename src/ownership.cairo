@@ -154,11 +154,9 @@ mod Ownership {
 
         //I HAVE ISSUE WITH THIS AS IT SHOWS ALL THE ITEMS OWNED BY A USER AND IT'S A PUBLIC
         //FUNCTION I WILL EITHER RESTRICT IT TO THE OWNER OR USE ZK HERE (I STILL DON'T KNOW YET)
-        fn get_all_my_items(ref self: ContractState //user: ContractAddress,
-        ) -> Array<Item> {
+        fn get_all_my_items(self: @ContractState, user: ContractAddress) -> Array<Item> {
             self.is_authenticity_set();
 
-            let user = get_caller_address();
             let mut items = ArrayTrait::new();
             let mut no_of_items = self.number_of_items.entry(user).read();
 

@@ -5,6 +5,7 @@ pub mod Cert {
     use starknet::{ContractAddress, get_tx_info};
     use crate::domain::Domain::StarknetDomain;
     use crate::domain::{IOffChainMessageHash, IStructHash};
+    use crate::errors::EriErrors::INVALID_MESSAGE;
 
     const STRUCT_WITH_ARRAY_TYPE_HASH: felt252 = selector!(
         "\"Certificate\"(\"name\":\"felt\",\"id\":\"felt\",\"serial\":\"felt\",\"date\":\"u128\",\"owner\":\"ContractAddress\",\"metadata\":\"felt*\")",
@@ -44,7 +45,7 @@ pub mod Cert {
         fn verify_message(self: @Certificate, message_hash: felt252) -> bool {
             let result = self.get_message_hash(*self.owner) == message_hash;
 
-            assert(result, 'Invalid message hash');
+            assert(result, INVALID_MESSAGE);
 
             result
         }
@@ -84,12 +85,4 @@ pub mod Cert {
             }
         }
     }
-    // fn verify_message(certificate: Certificate, message_hash: felt252,) -> bool {
-
-    //     let result = certificate.get_message_hash(certificate.owner) == message_hash;
-
-    //     assert(result, 'Invalid message hash');
-
-    //     result
-// }
 }
